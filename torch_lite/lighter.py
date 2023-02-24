@@ -1,68 +1,122 @@
+#import libraries
+import torch
+import pandas as pd
+from detecto.utils import read_image
+from detecto.core import Dataset, DataLoader, Model
+from detecto.visualize import show_labeled_image
+import torchvision.models as models
+from random import randint
+#scanning libraries
 import cv2
 import pytesseract
-import torch
-import numpy as np
 import imutils
 
-# Load PyTorch model
-model = torch.load('license_plate_model.pth')
+states = pd.read_csv('/home/xxdevilscloverxx/Documents/Vs_CodeSpace/python_projects/torch_lite/states.csv')
+states = tuple(states['State'].to_list())
+states = [state.upper() for state in states]
+base = '/home/xxdevilscloverxx/Documents/models'
 
-# Initialize video capture
-cap = cv2.VideoCapture(0)
+#create a model object
+label = ['licence']
+plates_model = Model(label)
 
-# Iterate through frames in video
-while True:
-    # Capture frame from video
-    ret, frame = cap.read()
-    if not ret:
-        break
+def most_frequent(List):
+    try:
+        return max(set(List), key = List.count)
+    except:
+        return None
 
-    # Preprocess frame
-    frame = imutils.resize(frame, width=600)
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    frame_blur = cv2.GaussianBlur(frame_gray, (5, 5), 0)
-    frame_thresh = cv2.adaptiveThreshold(frame_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+# Define a function to detect license plates in a single frame
+def detect_license_plates(frame, model):
+    # Resize the frame to a fixed height for consistency
+    frame = imutils.resize(frame, height=720)
+    
+    # Apply the pre-trained model to the grayscale frame
+    labels, boxes, scores = model.predict(frame)
+    
+    #get the predictions the model wasn't confident about
+    filter = [index for index,val in enumerate(scores) if val > .5]
+    boxes = boxes[filter]  #return tensors from the filter
+    labels = [labels[index] for index in filter]
+    if len(boxes) > 0:
+        boxes = boxes[0] #get the largest plate
+        labels = labels[0]
+    else:
+        return None
+    # Iterate over the license plate detections and extract the text
+    x1,y1,x2,y2 = boxes
+    x1 = int(x1)
+    y1 = int(y1)
+    x2 = int(x2)
+    y2 = int(y2)
 
-    # Find contours in frame
-    contours, _ = cv2.findContours(frame_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    plate_img = frame[y1-10:y2+10, x1-10:x2+10]
+    plate_img = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+    plate_img = cv2.medianBlur(plate_img, 3)
 
-    # Iterate through contours to find potential license plate
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > 1000:
-            x, y, w, h = cv2.boundingRect(contour)
-            if 2.5 < w/h < 4:
-                plate_img = frame_gray[y:y+h, x:x+w]
-                plate_img = cv2.resize(plate_img, (128, 64))
-                plate_img = plate_img / 255.0
-                plate_tensor = torch.from_numpy(np.expand_dims(plate_img, axis=0)).type(torch.FloatTensor)
-                with torch.no_grad():
-                    output = model(plate_tensor)
-                    prediction = output.data.max(1, keepdim=True)[1]
-                    plate_number = ''.join(str(e) for e in prediction.tolist()[0])
+    cv2.imshow("Cropped", plate_img)
+    plate_text = pytesseract.image_to_string(plate_img, config='--psm 11', lang='eng').strip() 
+    
+    #clean the text
+    plate_text = [char for char in plate_text if char.isalnum()] #remove special characters
+    plate_text = "".join(plate_text) #join the characters
+    plate_text = plate_text.upper() #convert to uppercase
+    
+    #check if the plate is from a state
+    for state in states:
+        if state in plate_text:
+            plate_text = plate_text.replace(state, '')
+    
+    #check if the plate is valid
+    if len(plate_text) < 5 or len(plate_text) > 7:
+        return None
+    
+    #finally, decline all-numeric plates
+    if plate_text.isnumeric():
+        return None
 
-                # Crop frame based on prediction box
-                x1 = int(max(x - w * 0.1, 0))
-                y1 = int(max(y - h * 0.1, 0))
-                x2 = int(min(x + w * 1.1, frame.shape[1]))
-                y2 = int(min(y + h * 1.1, frame.shape[0]))
-                frame_crop = frame[y1:y2, x1:x2]
+    return plate_text
 
-                # Apply OCR to get license plate number
-                config = '--psm 11 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-                plate_number = pytesseract.image_to_string(frame_crop, config=config)
+# Define a function to process a live video stream
+def process_live_video(model):
+    # Initialize the video capture object
+    cap = cv2.VideoCapture(0)
 
-                # Draw prediction box and license plate number on frame
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, plate_number, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    i = 0
+    buffer = [30]
+    # Loop over frames from the video stream
+    while True:
+        if i > 30:
+            print(most_frequent(buffer))
+            buffer.clear()
+            i = 0
+        i+=1
+        
+        # Read the next frame from the video stream
+        ret, frame = cap.read()
 
-    # Display frame
-    cv2.imshow('License Plate Detection', frame)
+        # If we couldn't read the next frame, break
+        if not ret:
+            raise ValueError("Frame could not be read, aborting!")
 
-    # Exit on 'q' key press
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Detect license plates in the frame
+        plate_text = detect_license_plates(frame, model)
 
-# Release video capture and destroy all windows
-cap.release()
-cv2.destroyAllWindows()
+        # Print the license plate texts to the console
+        if plate_text != None:
+            buffer.append(plate_text)
+
+        # Display the frame (optional)
+        cv2.imshow("Frame", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    # Release the video capture object and close any open windows
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    # fill your architecture with the trained weights
+    plates_model = Model.load(file=f"{base}/plates.pth", classes=['licence'])
+    process_live_video(plates_model)
