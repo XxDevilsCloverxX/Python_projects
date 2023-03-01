@@ -58,9 +58,7 @@ finally:
                 #get the predictions the model wasn't confident about
                 filter = [index for index,val in enumerate(scores) if val > .5]
                 boxes = boxes[filter]  #return tensors from the filter
-                boxes = boxes[0] #get the largest plate
                 labels = [labels[index] for index in filter]
-                labels = labels[0]
                 print(f"Revised Boxes: {boxes}")
                 print(f"Revised Labels: {labels}")
                 print(f"Scores: {scores}")  #I want to print all scores regardless to see what was filtered out
