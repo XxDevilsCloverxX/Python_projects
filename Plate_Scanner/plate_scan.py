@@ -41,7 +41,7 @@ class plate_reader:
                 raise Exception('Model path not provided!')
     
     #define a function to read the plate from an image
-    def read_plate(self, plate_img):
+    def __read_plate(self, plate_img):
         #read the plate from image
         results = self.reader.readtext(plate_img, detail=0, text_threshold=.9)  #play with threshold to get better results
         #apply a filter to the results to remove unwanted strings and states, if a filter is provided
@@ -125,7 +125,7 @@ class plate_reader:
         cv2.destroyAllWindows()
     
     #define a function to apply model and predict the plates
-    def predict_plates(self, frame):
+    def __predict_plates(self, frame):
         #predict the plate
         labels, boxes, scores = self.platemodel.predict_top(frame)
 
@@ -154,7 +154,7 @@ class plate_reader:
         return plates
 
     #define a function to upload the results to a database
-    def upload_results(self):
+    def __upload_results(self):
         #check if 5 seconds have passed
         if datetime.now() - self.time > timedelta(seconds=10):
             i = 0  #initialize the counter
