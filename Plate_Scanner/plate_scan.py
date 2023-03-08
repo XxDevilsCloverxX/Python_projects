@@ -20,7 +20,11 @@ import pymysql
 """
 class plate_reader:
     
-    #initialize the reader, database, and model
+    """
+    @Author: xdevilscloverx
+    @Description: This function is used to initialize the class
+    @Params:    Model Path - path to the model used to detect the plate (default: None) -> required parameter to run the class
+    """
     def __init__(self, lang='en', gpu=True, filter=None, model_path=None, host='localhost', user='root', password='password', db='database'):
         self.reader = ocr.Reader([lang], gpu=gpu)
         self.filter = filter
@@ -40,7 +44,10 @@ class plate_reader:
             else:
                 raise Exception('Model path not provided!')
     
-    #define a function to read the plate from an image
+    """
+    @Author: xdevilscloverx
+    @Description: This function is used to read the plates from a frame and return a string of the most likely plate
+    """
     def __read_plate(self, plate_img):
         #read the plate from image
         results = self.reader.readtext(plate_img, detail=0, text_threshold=.9)  #play with threshold to get better results
@@ -67,7 +74,10 @@ class plate_reader:
         
         return plate_text
     
-    #define a function to read the plate from a video
+    """
+    @Author: xdevilscloverx
+    @Description: This function is the primary handler for the class. It is used to process the video and upload the results to a database
+    """
     def process_video(self, video_path=0, frame_width=640, frame_height=480, fps=30):
         #initialize the video reader
         cap = cv2.VideoCapture(video_path)
@@ -124,7 +134,10 @@ class plate_reader:
         cap.release()
         cv2.destroyAllWindows()
     
-    #define a function to apply model and predict the plates
+    """
+    @Author: xdevilscloverx
+    @Description: This function uses the model to predict the plates in a frame and crop them out
+    """
     def __predict_plates(self, frame):
         #predict the plate
         labels, boxes, scores = self.platemodel.predict_top(frame)
@@ -153,7 +166,10 @@ class plate_reader:
 
         return plates
 
-    #define a function to upload the results to a database
+    """
+    @Author: xdevilscloverx
+    @Description: This function uploads the results to a database
+    """
     def __upload_results(self):
         #check if 5 seconds have passed
         if datetime.now() - self.time > timedelta(seconds=10):
