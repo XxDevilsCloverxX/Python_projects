@@ -1,0 +1,26 @@
+<annotation>
+	<folder>training_data</folder>
+	<filename>Cars385.png</filename>
+	<path>C:\Users\silas\Documents\Workspace\Python\tensorflow_model\images\training_data\Cars385.png</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1280</width>
+		<height>720</height>
+		<depth>1</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>license</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>208</xmin>
+			<ymin>173</ymin>
+			<xmax>1006</xmax>
+			<ymax>561</ymax>
+		</bndbox>
+	</object>
+</annotation>

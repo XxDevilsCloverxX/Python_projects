@@ -95,7 +95,7 @@ class plate_reader:
                 raise Exception('Video not found')
             
             #process the frame
-            plates = self.predict_plates(frame)
+            plates = self.__predict_plates(frame)
 
             #loop over the plates
             for plate in plates:
@@ -120,7 +120,7 @@ class plate_reader:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
             #upload the results to a database
-            self.upload_results()
+            self.__upload_results()
 
             #display the frame
             cv2.imshow('Frame', frame)
@@ -159,7 +159,7 @@ class plate_reader:
             plate_img = cv2.medianBlur(plate_img, 3)
             
             #read the plate
-            plate_text = self.read_plate(plate_img)
+            plate_text = self.__read_plate(plate_img)
             #update the dictionary
             if plate_text != "":
                 plates[f"{label}{index}"] = (plate_text, score, (x1, y1, x2, y2))
