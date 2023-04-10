@@ -4,17 +4,11 @@ from datetime import datetime, timedelta
 import time
 import cv2
 from pandas import read_csv
-import os
 import pymysql
 import tensorflow as tf
 import numpy as np
-import sys
-import glob
-import random
-import importlib.util
 from tensorflow.lite.python.interpreter import Interpreter
-import matplotlib.pyplot as plt
-
+import argparse
 
 """
 @Author: xxdevilscloverxx
@@ -199,8 +193,6 @@ class plate_reader:
         # Get model details
         input_details = self.platemodel.get_input_details()
         output_details = self.platemodel.get_output_details()
-        height = input_details[0]['shape'][1]
-        width = input_details[0]['shape'][2]
 
         float_input = (input_details[0]['dtype'] == np.float32)
 
@@ -222,10 +214,10 @@ class plate_reader:
         classes = self.platemodel.get_tensor(output_details[3]['index'])[0] # Class index of detected objects
         scores = self.platemodel.get_tensor(output_details[0]['index'])[0] # Confidence of detected objects
 
-        detections = []
+        detections = {}
 
         # Loop over all detections and draw detection box if confidence is above minimum threshold
-        for i in range(len(scores)):
+        for i, item in enumerate(scores):
             if ((scores[i] > min_conf) and (scores[i] <= 1.0)):
 
                 # Get bounding box coordinates and draw box
@@ -234,23 +226,37 @@ class plate_reader:
                 xmin = int(max(1,(boxes[i][1] * imW)))
                 ymax = int(min(imH,(boxes[i][2] * imH)))
                 xmax = int(min(imW,(boxes[i][3] * imW)))
-                    
-                cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
 
-                # Draw label
-                object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
-                label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
-                labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
-                label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-                cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-                cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-
-                detections.append([object_name, scores[i], xmin, ymin, xmax, ymax])
-
-            return
+                #add the detection to the dictionary
+                detections.update({i: (xmin, ymin, xmax, ymax)})
+        
+        return detections
 
 #run test script
 if __name__ == '__main__':
+
+    # parse the arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-m", "--model_path", type=str, default=None,
+                    help="Path to the input model")
+    ap.add_argument("-f", "--filter_path", type=str, default=None,
+                    help="Path to the filter csv file")
+    ap.add_argument("-g", "--gpu", type=bool, default=False,
+                    help="Use GPU? True or False")
+    
+    args = vars(ap.parse_args())
+
+    model_path = args['model_path']
+    filter_file = args['filter_path']
+    gpu = args['gpu']
+
+    # open the filter file
+    try:
+        filter_file = read_csv(filter_file)
+        filter = tuple(filter_file['State'])
+    except Exception as e:
+        print(e, "Filter file not found! Using no filter...")
+        filter = None
 
     #define the sql connection
     host = 'localhost'
@@ -258,15 +264,6 @@ if __name__ == '__main__':
     password = None
     db = None
 
-    model_path = '/home/xxdevilscloverxx/Documents/models/plates.pth'
-    # define a filter path
-    filter_path = os.path.join(os.path.dirname(__file__), 'states.csv')
-    #define a filter
-    filter = read_csv(filter_path)
-    filter = filter['State'].tolist()
-
     #initialize the reader
     detector = plate_reader(filter=filter, model_path=model_path,
                              gpu=True, host=host, user=user, password=password, db=db)
-    #process the video
-    detector.process_video()
