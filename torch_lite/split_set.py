@@ -4,7 +4,7 @@ import random
 import shutil
 
 # Set the path to the folder containing the images and their XML files
-data_folder = "/home/xxdevilscloverxx/Documents/Vs_CodeSpace/python_projects/sara/images"
+data_folder = os.path.join(os.path.dirname(__file__), "images")
 
 # Set the percentage of images to use for testing
 test_percent = 20

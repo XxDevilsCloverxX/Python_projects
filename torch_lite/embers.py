@@ -7,24 +7,24 @@ from random import randint
 # import the modules
 import os
 from os import listdir
+import time
 
 validate = True
 
 #files used in this trainer
 file_base = 'validate'
 
-base = '/home/xxdevilscloverxx/Documents/models'
-location = '/home/xxdevilscloverxx/Documents/Vs_CodeSpace/python_projects/torch_lite/images'
-testing = "/home/xxdevilscloverxx/Documents/Vs_CodeSpace/python_projects/torch_lite"
+base = os.path.dirname(os.path.abspath(__file__))
+location = os.path.join(base, 'images/train')
 
 #create a model object
-label = ['licence']
+label = ['license']
 plates_model = Model(label)
 
 #try to load a model if one exists
 try:
     # fill your architecture with the trained weights
-    plates_model = Model.load(file=f"{base}/plates.pth", classes=['licence'])
+    plates_model = Model.load(file=f"{base}/plates.pth", classes=label)
 #construct a model otherwise
 except:
     print(f"{base}/plates.pth was not found: Constructing model from {location}...")
@@ -48,12 +48,14 @@ except:
 finally:
     if (validate):
 
-        for image in os.listdir(testing):
+        for image in os.listdir(base):
             if(image.startswith('validate') and (image.endswith(".jpg") or image.endswith(".jpeg") or image.endswith(".png"))):
                
-                image = read_image(f"{testing}/{image}")
-
+                image = read_image(f"{base}/{image}")
+                #rate the speed
+                start = time.time()
                 labels, boxes, scores = plates_model.predict(image)
+                end = time.time()
 
                 #get the predictions the model wasn't confident about
                 filter = [index for index,val in enumerate(scores) if val > .5]
@@ -62,5 +64,6 @@ finally:
                 print(f"Revised Boxes: {boxes}")
                 print(f"Revised Labels: {labels}")
                 print(f"Scores: {scores}")  #I want to print all scores regardless to see what was filtered out
+                print(f"Time for prediction: {round(end - start, 3)}, 'seconds")
 
                 show_labeled_image(image, boxes, labels)
