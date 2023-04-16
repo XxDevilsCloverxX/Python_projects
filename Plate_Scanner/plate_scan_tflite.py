@@ -10,12 +10,13 @@ import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
 import argparse
 from PIL import Image
+from io import BytesIO  #used to convert the image to a byte stream
 #from picamera2 import Picamera2
 
 """
 @Author: xxdevilscloverxx
-@Date:   2021-05-10
-@Description: This class is used to read the plates from live video + upload the results to a database after x minutes
+@Date:   2023-04-16
+@Description: This class is used to read the plates from live video + upload the results to a database after x seconds
 @Params:    Model Path - path to the model used to detect the plate
             Filter - list of states to filter out
             Language - language to use for OCR
@@ -99,6 +100,9 @@ class plate_reader:
             # start the camera
             #picam2.start()
             pass
+        # create a byte stream obj to store the image data
+        stream = BytesIO()
+
         # wait for the camera to initialize
         time.sleep(3)
 
@@ -127,7 +131,7 @@ class plate_reader:
             # process the frame and 
             detections = self.predict_plates(frame)
 
-            # print the detections
+            # process the detections
             for key, item in detections.items():
                 # get the coordinates
                 x1, y1, x2, y2 = item
@@ -135,13 +139,24 @@ class plate_reader:
                 # get the plate image
                 plate_img = frame[y1:y2, x1:x2]
 
+                crop = Image.fromarray(plate_img)
+
                 # read the plate
                 plate_text = self.read_plate(plate_img)
 
                 # if the plate is not empty, print it
                 if plate_text != "":
-                    # load the plate into the buffer + the latest time it was scanned
-                    self.buffer.update({plate_text: str(datetime.date(datetime.now())) + " " + str(datetime.time(datetime.now()))})
+                    # create a byte stream obj to store the image data
+                    crop.save(stream, format='JPEG')
+                    # get the image data
+                    image_data = stream.getvalue()
+
+                    # reset the stream to the beginning
+                    stream.seek(0)
+                    stream.truncate()   #clear the stream
+
+                    # add the plate text, image, and time to the buffer
+                    self.buffer.update({plate_text: image_data})
 
             # upload the results to a database
             self.__upload_results()
@@ -158,33 +173,32 @@ class plate_reader:
             if self.connected:
                 print("Uploading results to database...")
                 #loop over the buffer
-                for plate in self.buffer.keys():
+                for i, plate in enumerate(self.buffer.keys()):
                     if plate not in self.time_buffer.keys():
                         with self.connection.cursor() as cursor:
                             #create the sql query
-                            sql = "INSERT INTO `plates` (`Plate`, `Time`) VALUES (%s, %s)"
+                            sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
                             #execute the query
                             cursor.execute(sql, (plate, self.buffer[plate]))
                             #commit the changes
                             self.connection.commit()
-                        i += 1
                         
                         #upload the results to the database
                         print(f"{plate}: {self.buffer[plate]} uploaded to database!")
             else:
-                print("Database connection failed! Printing results...")
+                print("Printing results...")
                 #loop over the buffer
-                for plate in self.buffer.keys():
+                for i, plate in enumerate(self.buffer.keys()):
                     if plate not in self.time_buffer.keys():
-                        print(f"{plate}: {self.buffer[plate]}")
-                        i += 1
+                        print(f"{plate}")  #print the plate
+
             print(f"{i} results uploaded to database!")
 
             #update the time buffer
             self.time_buffer.clear()              #clear the time buffer before updating
             self.time_buffer.update(self.buffer)  #update the time buffer
 
-            print(self.time_buffer)               #print the time buffer -> show plate when empty!
+            print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
 
             #clear the buffer
             self.buffer.clear()
@@ -257,9 +271,11 @@ if __name__ == '__main__':
     ap.add_argument("-f", "--filter_path", type=str, default=None,
                     help="Path to the filter csv file")
     ap.add_argument("-g", "--gpu", type=bool, default=False,
-                    help="Use GPU? True or False")
+                    help="Use GPU? Default: False")
     ap.add_argument("-c", "--camera", type=bool, default=False,
-                    help="Use the USB webcam? False for Serial / Picamera")    
+                    help="Use the USB webcam? Default: False")
+    ap.add_argument("-d", "--database", type=bool, default=False,
+                    help="Connect to a database? Default: False")        
     args = vars(ap.parse_args())
 
     model_path = args['model_path']
@@ -267,6 +283,8 @@ if __name__ == '__main__':
     gpu = args['gpu']
     cam = args['camera']
     cam_setting = args['camera']
+    database = args['database'] 
+
     # open the filter file
     try:
         filter_file = read_csv(filter_file)
@@ -275,12 +293,18 @@ if __name__ == '__main__':
         print(e, "Filter file not found! Using no filter...")
         filter = None
 
-    #define the sql connection
-    host = 'localhost'
-    user = None
-    password = None
-    db = None
-
+    if database:    
+        #define the sql connection
+        host = "195.179.237.153"
+        user = "u376552790_projectlabdb"
+        password = "Ltg5075@"
+        db = "u376552790_projectlabdb"
+    else:
+        host = None
+        user = None
+        password = None
+        db = None
+    
     #initialize the reader
     detector = plate_reader(filter=filter, model_path=model_path, usbwebcam=cam_setting,
                              gpu=True, host=host, user=user, password=password, db=db)
