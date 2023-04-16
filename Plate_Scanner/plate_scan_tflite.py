@@ -1,5 +1,4 @@
 #import libraries for OCR + plate detection + image processing + data manipulation
-import easyocr as ocr
 from datetime import datetime, timedelta
 import time
 import cv2
@@ -12,6 +11,7 @@ import argparse
 from PIL import Image
 from io import BytesIO  #used to convert the image to a byte stream
 #from picamera2 import Picamera2
+import pytesseract
 
 """
 @Author: xxdevilscloverxx
@@ -24,14 +24,13 @@ from io import BytesIO  #used to convert the image to a byte stream
             Video Path - path to the video to process, 0 for webcam
 """
 class plate_reader:
-    
+   
     """
     @Author: xdevilscloverx
     @Description: This function is used to initialize the class
     @Params:    Model Path - path to the model used to detect the plate (default: None) -> required parameter to run the class
     """
-    def __init__(self, lang='en', gpu=False, filter=None, model_path=None, usbwebcam=False,host='localhost', user='root', password='password', db='database'):
-        self.reader = ocr.Reader([lang], gpu=gpu)
+    def __init__(self, filter=None, model_path=None, usbwebcam=False,host='localhost', user='root', password='password', db='database'):
         self.filter = filter
         self.time = datetime.now()  #get the current time @ initialization
         self.buffer = {}  #initialize the buffer
@@ -49,37 +48,46 @@ class plate_reader:
                 self.platemodel = Interpreter(model_path=model_path)
             else:
                 raise Exception('Model path not provided!')
-    
+   
     """
     @Author: xdevilscloverx
     @Description: This function is used to read the plates from a frame and return a string of the most likely plate
     """
     def read_plate(self, plate_img):
-        #read the plate from image
-        results = self.reader.readtext(plate_img, detail=0, text_threshold=.9)  #play with threshold to get better results
-        #apply a filter to the results to remove unwanted strings and states, if a filter is provided
+        # read the plate
+        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 12', nice=0, output_type="dict")
+        
+        # get the words with a confidence of 25 or higher
+        words = []
+        for i, word in enumerate(results['text']):
+            conf = int(results['conf'][i])
+            if conf >= 40:
+                words.append(word)
+        
+        # join the words together
+        plate_text = "".join(words)
+        plate_text = [char.upper() for char in plate_text if char.isalnum()]    #remove special characters
+        plate_text = "".join(plate_text)    #join the characters together
+        
+        # filter out the states
         if self.filter is not None:
-            #filter the results for the plate + remove useless strings and states
-            results = [_ for _ in results if len(_) > 5 and len(_) < 9 and not _.isdigit() and _.upper() not in self.filter]
-        else:
-            #filter the results for the plate + remove useless strings and states
-            results = [_ for _ in results if len(_) > 5 and len(_) < 9 and not _.isdigit()]
-        
-        #if no results are found, return an empty string
-        if len(results) == 0:
-            return ""
-        
-        #clean the text
-        plate_text = [char for char in results[0] if char.isalnum()]
-        plate_text = "".join(plate_text)
-        plate_text = plate_text.upper()
+            for state in self.filter:
+                if state.upper() in plate_text:
+                    plate_text = plate_text.replace(state.upper(), '')  #remove the state from the plate text
 
-        #check if the plate is valid
-        if len(plate_text) < 5 or len(plate_text) > 8 or plate_text.isdigit():
-            return ""
-        
+        # return a max of 8 characters
+        if len(plate_text) > 8:
+            plate_text = plate_text[:8]
+
+        elif len(plate_text) < 4:
+            plate_text = "" #return an empty string if the plate is too small
+
+        if plate_text.isnumeric():
+            plate_text = "" #return an empty string if the plate is all numbers
+
+        # return the plate text
         return plate_text
-    
+   
     """
     @Author: xdevilscloverx
     @Description: This function is the primary handler for the class. It is used to process the video and upload the results to a database
@@ -94,8 +102,8 @@ class plate_reader:
         else:
             # initialize the Pi camera with the config size of 1280x720 and 30 fps
             #picam2 = Picamera2()
-            #picam2.set_config(size=(1280, 720))
-            #picam2.set_config(fps=30)
+            #config = picam2.create_still_configuration(main={"size": (1280, 720)})
+            #picam2.configure(config)
 
             # start the camera
             #picam2.start()
@@ -108,27 +116,24 @@ class plate_reader:
 
         # loop over the frames
         while True:
-            
+           
             if self.usbwebcam:    
                 # read the frame
                 ret, frame = cap.read()
                 if not ret:
                     raise Exception('Video not found')
+                frame = Image.fromarray(frame)
+                frame = frame.convert('L')
             else:
-                # read the frame, convert to grayscale 
+                # read the frame, convert to grayscale
                 #frame = picam2.capture_image("main")
-                #frame = Image.fromarray(frame)
                 #frame = frame.convert('L')
-                pass
-            
-            frame = Image.fromarray(frame)
-            frame = frame.convert('L')
-            
+                pass 
             new_frame = Image.new('RGB', frame.size)
             new_frame.putdata([(x, x, x) for x in frame.getdata()])
             frame = np.array(new_frame)
-            
-            # process the frame and 
+           
+            # process the frame and
             detections = self.predict_plates(frame)
 
             # process the detections
@@ -140,12 +145,24 @@ class plate_reader:
                 plate_img = frame[y1:y2, x1:x2]
 
                 crop = Image.fromarray(plate_img)
+                crop.save("crop.jpeg")
 
+                copy = cv2.imread("crop.jpeg")
+                copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
+                copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
+                thresh = cv2.threshold(copy, 170, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+                close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
+                result = 255 - close
+
+                #cv2.imwrite("result.jpg", result)
                 # read the plate
-                plate_text = self.read_plate(plate_img)
+                plate_text = self.read_plate(result)
 
                 # if the plate is not empty, print it
                 if plate_text != "":
+                    print(plate_text)
                     # create a byte stream obj to store the image data
                     crop.save(stream, format='JPEG')
                     # get the image data
@@ -160,7 +177,7 @@ class plate_reader:
 
             # upload the results to a database
             self.__upload_results()
-    
+   
     """
     @Author: xdevilscloverx
     @Description: This function uploads the results to a database
@@ -182,7 +199,7 @@ class plate_reader:
                             cursor.execute(sql, (plate, self.buffer[plate]))
                             #commit the changes
                             self.connection.commit()
-                        
+                       
                         #upload the results to the database
                         print(f"{plate}: {self.buffer[plate]} uploaded to database!")
             else:
@@ -204,12 +221,12 @@ class plate_reader:
             self.buffer.clear()
             print('Upload completed!')
         return None
-    
+   
     """
     @Author xdevilscloverx
     @Description: This function defines a bounding box for the plate
     """
-    def predict_plates(self, frame, min_conf=0.5):
+    def predict_plates(self, frame, min_conf=0.6):
 
         # Load the Tensorflow Lite model into memory
         self.platemodel.allocate_tensors()
@@ -225,7 +242,7 @@ class plate_reader:
 
         imH, imW, _ = frame.shape  # image size
         copy = frame.copy()
-        
+       
         # Resize image to model size
         copy = cv2.resize(copy, (input_details[0]['shape'][2], input_details[0]['shape'][1]))
         input_data = np.expand_dims(copy, axis=0)
@@ -233,7 +250,7 @@ class plate_reader:
         # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
         if float_input:
             input_data = (np.float32(input_data) - input_mean) / input_std
-        
+       
         # Perform the actual detection by running the model with the image as input
         self.platemodel.set_tensor(input_details[0]['index'],input_data)
         self.platemodel.invoke()
@@ -258,7 +275,7 @@ class plate_reader:
 
                 #add the detection to the dictionary: these align with the original coordinates
                 detections.update({i: (xmin, ymin, xmax, ymax)})
-        
+       
         return detections
 
 #run test script
@@ -283,7 +300,7 @@ if __name__ == '__main__':
     gpu = args['gpu']
     cam = args['camera']
     cam_setting = args['camera']
-    database = args['database'] 
+    database = args['database']
 
     # open the filter file
     try:
@@ -304,9 +321,9 @@ if __name__ == '__main__':
         user = None
         password = None
         db = None
-    
+   
     #initialize the reader
     detector = plate_reader(filter=filter, model_path=model_path, usbwebcam=cam_setting,
-                             gpu=True, host=host, user=user, password=password, db=db)
+                            host=host, user=user, password=password, db=db)
 
     detector.process_video()
