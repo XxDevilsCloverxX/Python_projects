@@ -61,7 +61,7 @@ class plate_reader:
         words = []
         for i, word in enumerate(results['text']):
             conf = int(results['conf'][i])
-            if conf >= 40:
+            if conf >= 30:
                 words.append(word)
         
         # join the words together
@@ -184,23 +184,31 @@ class plate_reader:
     def __upload_results(self):
         #check if 10 seconds have passed
         if datetime.now() - self.time > timedelta(seconds=10):
-            i = 0  #initialize the counter
             self.time = datetime.now()   #reset the timer
             if self.connected:
                 print("Uploading results to database...")
                 #loop over the buffer
                 for i, plate in enumerate(self.buffer.keys()):
                     if plate not in self.time_buffer.keys():
-                        with self.connection.cursor() as cursor:
-                            #create the sql query
-                            sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                            #execute the query
-                            cursor.execute(sql, (plate, self.buffer[plate]))
-                            #commit the changes
-                            self.connection.commit()
-                       
-                        #upload the results to the database
-                        print(f"{plate}: {self.buffer[plate]} uploaded to database!")
+                        try:
+                            with self.connection.cursor() as cursor:
+                                #create the sql query
+                                sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                #execute the query
+                                cursor.execute(sql, (plate, self.buffer[plate]))
+                                #commit the changes
+                                self.connection.commit()
+                        
+                            #upload the results to the database
+                            print(f"'{plate}' uploaded to database!")
+                        except Exception as e:
+                            print(f"Error uploading '{plate}' to database: {e}")
+                        finally:
+                            #close the connection and reattempt to connect
+                            self.connection.close()
+
+                            #attempt to reconnect
+                            self.connection = pymysql.connect(host=host, user=user, password=password, db=db)  #connect to the database
             else:
                 print("Printing results...")
                 #loop over the buffer
@@ -224,7 +232,7 @@ class plate_reader:
     @Author xdevilscloverx
     @Description: This function defines a bounding box for the plate
     """
-    def predict_plates(self, frame, min_conf=0.6):
+    def predict_plates(self, frame, min_conf=0.5):
 
         # Load the Tensorflow Lite model into memory
         self.platemodel.allocate_tensors()
