@@ -183,7 +183,7 @@ class plate_reader:
     @Description: This function uploads the results to a database
     """
     def __upload_results(self):
-        #check if 5 seconds have passed
+        #check if 10 seconds have passed
         if datetime.now() - self.time > timedelta(seconds=10):
             i = 0  #initialize the counter
             self.time = datetime.now()   #reset the timer
@@ -209,17 +209,16 @@ class plate_reader:
                     if plate not in self.time_buffer.keys():
                         print(f"{plate}")  #print the plate
 
-            print(f"{i} results uploaded to database!")
+            print(f"{i} results captured + pushed!")
 
             #update the time buffer
             self.time_buffer.clear()              #clear the time buffer before updating
             self.time_buffer.update(self.buffer)  #update the time buffer
 
-            print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
+            #print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
 
             #clear the buffer
             self.buffer.clear()
-            print('Upload completed!')
         return None
    
     """
