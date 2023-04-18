@@ -10,7 +10,7 @@ from tensorflow.lite.python.interpreter import Interpreter
 import argparse
 from PIL import Image
 from io import BytesIO  #used to convert the image to a byte stream
-#from picamera2 import Picamera2
+from picamera2 import Picamera2
 import pytesseract
 
 """
@@ -101,13 +101,12 @@ class plate_reader:
             cap.set(cv2.CAP_PROP_FPS, 30)
         else:
             # initialize the Pi camera with the config size of 1280x720 and 30 fps
-            #picam2 = Picamera2()
-            #config = picam2.create_still_configuration(main={"size": (1280, 720)})
-            #picam2.configure(config)
+            picam2 = Picamera2()
+            config = picam2.create_still_configuration(main={"size": (1280, 720)})
+            picam2.configure(config)
 
             # start the camera
-            #picam2.start()
-            pass
+            picam2.start()
         # create a byte stream obj to store the image data
         stream = BytesIO()
 
@@ -126,9 +125,9 @@ class plate_reader:
                 frame = frame.convert('L')
             else:
                 # read the frame, convert to grayscale
-                #frame = picam2.capture_image("main")
-                #frame = frame.convert('L')
-                pass 
+                frame = picam2.capture_image("main")
+                frame = frame.convert('L')
+                 
             new_frame = Image.new('RGB', frame.size)
             new_frame.putdata([(x, x, x) for x in frame.getdata()])
             frame = np.array(new_frame)
