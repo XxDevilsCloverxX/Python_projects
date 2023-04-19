@@ -12,6 +12,7 @@ import pytesseract
 from threading import Thread
 import importlib.util
 import time
+import sys
 
 """
 @Author xdevilscloverx
@@ -38,6 +39,7 @@ class platescanner:
         self.stream = BytesIO()     #stream to store the image
         self.usbwebcam = usbwebcam  #determine if the camera is a usb webcam or a pi camera
         self.threads = []           #list of threads
+        self.stop = False           #boolean to stop the threads
         #create the appropriate video stream
         if self.usbwebcam:
             #create a video capture object
@@ -78,7 +80,7 @@ class platescanner:
     @Description: This function reads a frame from the camera and returns it
     """
     def readframe(self):
-        while True:
+        while not self.stop:
             # read the frame
             if self.usbwebcam:
                 ret, frame = self.cam.read()
@@ -105,13 +107,14 @@ class platescanner:
         #create a thread to read the frame
         self.readthread = Thread(target=self.readframe, args=())
         self.handler = Thread(target=self.handle_frame, args=())
-        self.breakthread = Thread(target=self.wait_for_key, args=())
-        self.threads.append(self.readthread)
+        self.uploader = Thread(target=self.upload_to_database, args=())
         self.threads.append(self.readthread)
         self.threads.append(self.handler)
-        self.readthread.start()
-        self.handler.start()
-        self.breakthread.start()
+        self.threads.append(self.uploader)
+
+        #start the threads
+        for thread in self.threads:
+            thread.start()
         return self
     
     """
@@ -170,13 +173,13 @@ class platescanner:
     """
     def read_plate(self, plate_img):
         # read the plate
-        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 6', nice=0, output_type="dict")
+        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 11', nice=0, output_type="dict")
         
         # get the words with a confidence of 25 or higher
         words = []
         for i, word in enumerate(results['text']):
             conf = int(results['conf'][i])
-            if conf >= 30:
+            if conf >= 25:
                 words.append(word)
         
         # join the words together
@@ -208,7 +211,7 @@ class platescanner:
     @Description: This function handles the frame and adds the plate to the buffer and database
     """
     def handle_frame(self):
-        while True:
+        while not self.stop:
             # access the frame
             frame = self.frame
 
@@ -256,8 +259,7 @@ class platescanner:
 
                     # save the frame with the plate drawn on it
                     cv2.imwrite(f"outputs/frame{i}.jpeg", copy)
-
-                self.upload_to_database()   #try to upload the results to the database
+    
     """
     @Author xdevilscloverx
     @Description: This function resets the connection to the database
@@ -274,79 +276,86 @@ class platescanner:
                 continue
             print("Connection is alive")
             return
+    
     """
     @Author xdevilscloverx
     @Description: This function uploads the results to the database or prints the results to the console every 10 seconds
     """
     def upload_to_database(self):
-        i = -1  #initialize the default index for printing
-        #check if 5 seconds have passed
-        if datetime.now() - self.time > timedelta(seconds=5):
-            self.time = datetime.now()   #reset the timer
-            if self.connected:
-                print("Uploading results to database...")
-                #loop over the buffer
-                for i, plate in enumerate(self.buffer.keys()):
-                    if plate not in self.shift_buffer.keys():
-                        try:
-                            with self.connection.cursor() as cursor:
-                                #create the sql query
-                                sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                                #execute the query
-                                cursor.execute(sql, (plate, self.buffer[plate]))
-                                #commit the changes
-                                self.connection.commit()
-                        
-                            #upload the results to the database
-                            print(f"'{plate}' uploaded to database!")
-                        except pymysql.err.OperationalError as e:
-                            print(f"Error uploading '{plate}' to database: {e}")
-                            self.reconnect()    #reconnect to the database if the connection is lost -> hangs the program
-                            with self.connection.cursor() as cursor:
-                                #create the sql query again
-                                sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                                #execute the query again
-                                cursor.execute(sql, (plate, self.buffer[plate]))
-                                #commit the changes
-                                self.connection.commit()                            
-            else:
-                print("Printing results...")
-                #loop over the buffer
-                for i, plate in enumerate(self.buffer.keys()):
-                    if plate not in self.time_buffer.keys():
-                        print(f"{plate}")  #print the plate
+        while not self.stop:
+            i = -1  #initialize the default index for printing
+            #check if 5 seconds have passed
+            if datetime.now() - self.time > timedelta(seconds=5):
+                self.time = datetime.now()   #reset the timer
+                if self.connected:
+                    print("Uploading results to database...")
+                    #loop over the buffer
+                    for i, plate in enumerate(self.buffer.keys()):
+                        if plate not in self.shift_buffer.keys():
+                            try:
+                                with self.connection.cursor() as cursor:
+                                    #create the sql query
+                                    sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                    #execute the query
+                                    cursor.execute(sql, (plate, self.buffer[plate]))
+                                    #commit the changes
+                                    self.connection.commit()
+                            
+                                #upload the results to the database
+                                print(f"'{plate}' uploaded to database!")
+                            except pymysql.err.OperationalError as e:
+                                print(f"Error uploading '{plate}' to database: {e}")
+                                self.reconnect()    #reconnect to the database if the connection is lost -> hangs the program
+                                with self.connection.cursor() as cursor:
+                                    #create the sql query again
+                                    sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                    #execute the query again
+                                    cursor.execute(sql, (plate, self.buffer[plate]))
+                                    #commit the changes
+                                    self.connection.commit()                            
+                else:
+                    print("Printing results...")
+                    #loop over the buffer
+                    for i, plate in enumerate(self.buffer.keys()):
+                        if plate not in self.shift_buffer.keys():
+                            print(f"{plate}")  #print the plate
 
-            print(f"{i+1} results captured + pushed!")
+                print(f"{i+1} results captured + pushed!")
 
-            #update the time buffer
-            self.shift_buffer.clear()              #clear the time buffer before updating
-            self.shift_buffer.update(self.buffer)  #update the time buffer
-            #print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
-            
-            #clear the buffer
-            self.buffer.clear()
-        return None
+                #update the time buffer
+                self.shift_buffer.clear()              #clear the time buffer before updating
+                self.shift_buffer.update(self.buffer)  #update the time buffer
+                #print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
+                
+                #clear the buffer
+                self.buffer.clear()
 
     """
     @Author xdevilscloverx
     @Description: This function stops the threads and closes the connection to the database and frees resources
     """
-    def stopthreads(self):
-        for thread in self.threads:
-            thread.stop()   #stop the threads
-        self.connection.close() #close the connection to the database
-        return None
-    
-    """
-    @Author xdevilscloverx
-    @Description: This function waits for the user to press a key to stop the program
-    """
-    def wait_for_key(self):
+    def stop_and_exit(self):
         while True:
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        self.stopthreads()  #stop the threads
-        exit()  #exit the program
+            try:
+                self.stop = True #stop the threads
+                for thread in self.threads:
+                    thread.join()   #stop the threads
+                if self.connected:
+                    self.connection.close() #close the connection to the database
+        
+                    if self.usbwebcam:
+                        self.cam.release()
+                    else:
+                        self.cam.stop()
+            except KeyboardInterrupt:
+                print("Keyboard interrupt detected!")
+                print("Stopping threads...")
+                self.stop = True
+                continue
+            break
+        
+        print("Scanner stopped!")
+        sys.exit(0) #exit the program
 
 #run script
 if __name__ == '__main__':
@@ -447,3 +456,10 @@ if __name__ == '__main__':
 
     # Start the scanner
     scanner.start()
+
+    while True:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            scanner.stop_and_exit()
+            break
