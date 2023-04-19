@@ -11,8 +11,8 @@ xml_files = [f for f in os.listdir(source_dir) if f.endswith('.xml')]
 
 # Loop through the XML files
 for xml_file in xml_files:
-    # Check if there is a corresponding PNG file in the destination directory
-    png_file = xml_file.replace('.xml', '.png')
+    # Check if there is a corresponding jpeg file in the destination directory
+    png_file = xml_file.replace('.xml', '.jpg')
     if png_file in os.listdir(dest_dir1):
         # Move the XML file to destination folder 1
         shutil.move(os.path.join(source_dir, xml_file), dest_dir1)

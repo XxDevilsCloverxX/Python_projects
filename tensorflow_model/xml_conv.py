@@ -13,7 +13,10 @@ for filename in os.listdir(directory):
 
         # Find the filename tag and update the extension
         for filename_tag in root.iter('filename'):
-            filename_tag.text = filename_tag.text.replace('.png', '.jpeg')
+            filename_tag.text = filename_tag.text.replace('.png', '.jpg')
+
+        for path_tag in root.iter('path'):
+            path_tag.text = path_tag.text.replace('.png', '.jpg')
 
         # Write the updated XML to a new file with the same name
         tree.write(os.path.join(directory, filename))

@@ -4,7 +4,7 @@ import os
 
 diff_dir = False
 rgb = False
-ext = ".jpeg"   #<-- file extension to save as
+ext = ".jpg"   #<-- file extension to save as
 
 #generate a path to the images folder from cwd
 path = os.path.dirname(__file__) + "/images/"    #<-- absolute dir the script is in + images folder
@@ -29,13 +29,14 @@ for i, filename in enumerate(os.listdir(path)):
             else:
                 # convert the image to grayscale
                 img = img.convert('L')
+                img = img.convert('RGB')    #convert to RGB to save as jpeg
 
             #overwrite the image
             img_name = os.path.join(path, os.path.splitext(filename)[0] + ext)
             img.save(img_name)
 
             if not filename.endswith(ext):
-                #delete the image
+                #delete the original image
                 os.remove(path + filename)
 
             #close the image
@@ -50,6 +51,6 @@ for i, filename in enumerate(os.listdir(path)):
     finally:
         #increment the counter and print the progress
         if i % 20 == 0:
-            print(f"Progress {i} images processed and saved.")
+            print(f"Progress {i} files processed and saved.")
 
 print("Done!")
