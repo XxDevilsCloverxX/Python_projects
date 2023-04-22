@@ -230,7 +230,9 @@ class platescanner:
                 crop.save(f"outputs/crop{i}.jpeg")
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
-                copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
+                #resize frame to 640x480
+                crop = cv2.resize(copy, (640, 480)) #reassign the frame to the resized frame
+                copy = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
                 copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
                 thresh = cv2.threshold(copy, 170, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
 
@@ -267,6 +269,7 @@ class platescanner:
     def reconnect(self):
         while True:
             try:
+                self.stop = True #stop the handle frame thread from running while reconnecting
                 self.connection.ping(reconnect=True)
                 print("Pinging...")
             except pymysql.err.OperationalError:
@@ -275,6 +278,7 @@ class platescanner:
                 self.connected = False  #set the connection to false
                 continue
             print("Connection is alive")
+            self.stop = False    #start the handle frame thread again
             return
     
     """
