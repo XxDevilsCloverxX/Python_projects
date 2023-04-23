@@ -421,9 +421,9 @@ if __name__ == '__main__':
     # import the necessary packages for the model
     pkg = importlib.util.find_spec('tflite_runtime')
     if pkg:
-        from tensorflow.lite.python.interpreter import Interpreter
+        from tflite_runtime.interpreter import Interpreter
         if edgetpu:
-            from tensorflow.lite.python.interpreter import load_delegate
+            from tflite_runtime.interpreter import load_delegate
     else:
         from tensorflow.lite.python.interpreter import Interpreter
         if edgetpu:
