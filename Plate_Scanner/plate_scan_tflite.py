@@ -55,7 +55,7 @@ class platescanner:
             self.frame = Image.fromarray(self.frame)   #convert the frame to a PIL image
         else:
             #create a video capture object using pi camera
-            self.cam = PiCamera2()
+            self.cam = Picamera2()
             config = self.cam.create_still_configuration(main={"size": (1280, 720)})
             self.cam.configure(config)
             # start the camera
@@ -414,9 +414,9 @@ if __name__ == '__main__':
     else:
         conn = None
     
-    # if camera setting is false, import PiCamera
+    # if camera setting is false, import Picamera
     if not cam_setting:
-        from picamera2 import PiCamera2
+        from picamera2 import Picamera2
 
     # import the necessary packages for the model
     pkg = importlib.util.find_spec('tflite_runtime')
