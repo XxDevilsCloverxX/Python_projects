@@ -230,9 +230,7 @@ class platescanner:
                 crop.save(f"outputs/crop{i}.jpeg")
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
-                #resize frame to 640x480
-                crop = cv2.resize(copy, (640, 480)) #reassign the frame to the resized frame
-                copy = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
                 copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
                 thresh = cv2.threshold(copy, 170, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
 
@@ -248,7 +246,8 @@ class platescanner:
                 if plate_text != "":
                     print(plate_text)
                     # create a byte stream obj to store the image data
-                    crop.save(self.stream, format='jpeg')
+                    crop.save(self.stream, format="JPEG")
+                    
                     # get the image data
                     image_data = self.stream.getvalue()
 
@@ -270,6 +269,8 @@ class platescanner:
         while True:
             try:
                 self.stop = True #stop the handle frame thread from running while reconnecting
+                for thread in self.threads:
+                    thread.join()   #wait for all threads to finish
                 self.connection.ping(reconnect=True)
                 print("Pinging...")
             except pymysql.err.OperationalError:
@@ -279,6 +280,9 @@ class platescanner:
                 continue
             print("Connection is alive")
             self.stop = False    #start the handle frame thread again
+            self.connected = True   #set the connection to true
+            for thread in self.threads:
+                thread.start()  #start all threads again
             return
     
     """
@@ -417,12 +421,12 @@ if __name__ == '__main__':
     # import the necessary packages for the model
     pkg = importlib.util.find_spec('tflite_runtime')
     if pkg:
-        from tflite_runtime.interpreter import Interpreter
-        if use_TPU:
-            from tflite_runtime.interpreter import load_delegate
+        from tensorflow.lite.python.interpreter import Interpreter
+        if edgetpu:
+            from tensorflow.lite.python.interpreter import load_delegate
     else:
         from tensorflow.lite.python.interpreter import Interpreter
-        if use_TPU:
+        if edgetpu:
             from tensorflow.lite.python.interpreter import load_delegate
 
     # Load the Tensorflow Lite model into memory 
