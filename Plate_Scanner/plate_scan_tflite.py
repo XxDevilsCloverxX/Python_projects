@@ -173,7 +173,7 @@ class platescanner:
     """
     def read_plate(self, plate_img):
         # read the plate
-        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 11', nice=0, output_type="dict")
+        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 7', nice=0, output_type="dict")
         
         # get the words with a confidence of 25 or higher
         words = []
@@ -232,7 +232,7 @@ class platescanner:
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
                 copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
                 copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
-                thresh = cv2.threshold(copy, 170, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+                thresh = cv2.adaptiveThreshold(copy, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
 
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
                 close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
@@ -418,21 +418,22 @@ if __name__ == '__main__':
     if not cam_setting:
         from picamera2 import Picamera2
 
-    # import the necessary packages for the model
+   # import the necessary packages for the model
     pkg = importlib.util.find_spec('tflite_runtime')
     if pkg:
         from tflite_runtime.interpreter import Interpreter
         if edgetpu:
             from tflite_runtime.interpreter import load_delegate
+            from pycoral.utils.edgetpu import make_interpreter
     else:
         from tensorflow.lite.python.interpreter import Interpreter
         if edgetpu:
             from tensorflow.lite.python.interpreter import load_delegate
+            from pycoral.utils.edgetpu import make_interpreter
 
     # Load the Tensorflow Lite model into memory 
     if edgetpu:
-        interpreter = Interpreter(model_path=model_path,
-                              experimental_delegates=[load_delegate('libedgetpu.so.1.0')])
+        interpreter = make_interpreter(model_path=model_path, delegate=load_delegate('libedgetpu.so.1.0'))
     else:
         interpreter = Interpreter(model_path=model_path)
 
