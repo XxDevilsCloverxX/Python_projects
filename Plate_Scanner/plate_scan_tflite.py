@@ -13,6 +13,8 @@ from threading import Thread
 import importlib.util
 import time
 import sys
+from glob import glob   #used to get the list of files in a directory
+import os
 
 """
 @Author xdevilscloverx
@@ -72,6 +74,22 @@ class platescanner:
         
         if self.connection is not None:
             self.connected = True
+            # upload plates from previous runs
+            for file in glob(os.path.join(os.getcwd(), "outputs", "reconnect", "*.bin")):
+                filename = file.split("\\")[-1]    #get the filename not extension
+                try:
+                    with self.connection.cursor() as cursor:
+                        #create the sql query
+                        sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                        #execute the query
+                        cursor.execute(sql, (filename, file))
+                        #commit the changes
+                        self.connection.commit()
+                    #upload the results to the database
+                    print(f"'{filename}' uploaded to database!")
+                except pymysql.err.OperationalError as e:
+                    print(f"Error uploading '{filename}' to database: {e}")
+                    
         else:
             self.connected = False
 
@@ -111,12 +129,21 @@ class platescanner:
         self.threads.append(self.readthread)
         self.threads.append(self.handler)
         self.threads.append(self.uploader)
-
+        self.stop = False   #set stop to false to start the threads
         #start the threads
         for thread in self.threads:
             thread.start()
         return self
     
+    """
+    Stop the threads
+    """
+    def stop_threads(self):
+        self.stop = True
+        for thread in self.threads:
+            thread.join()
+        self.threads.clear()
+
     """
     @Author xdevilscloverx
     @Description: This function takes a frame and returns a dictionary of the detected plates and their coordinates
@@ -175,11 +202,11 @@ class platescanner:
         # read the plate
         results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 7', nice=0, output_type="dict")
         
-        # get the words with a confidence of 25 or higher
+        # get the words with a confidence of 15 or higher
         words = []
         for i, word in enumerate(results['text']):
             conf = int(results['conf'][i])
-            if conf >= 25:
+            if conf >= 15:
                 words.append(word)
         
         # join the words together
@@ -263,30 +290,6 @@ class platescanner:
     
     """
     @Author xdevilscloverx
-    @Description: This function resets the connection to the database
-    """
-    def reconnect(self):
-        while True:
-            try:
-                self.stop = True #stop the handle frame thread from running while reconnecting
-                for thread in self.threads:
-                    thread.join()   #wait for all threads to finish
-                self.connection.ping(reconnect=True)
-                print("Pinging...")
-            except pymysql.err.OperationalError:
-                print("Lost connection, reconnecting...")
-                time.sleep(5)
-                self.connected = False  #set the connection to false
-                continue
-            print("Connection is alive")
-            self.stop = False    #start the handle frame thread again
-            self.connected = True   #set the connection to true
-            for thread in self.threads:
-                thread.start()  #start all threads again
-            return
-    
-    """
-    @Author xdevilscloverx
     @Description: This function uploads the results to the database or prints the results to the console every 10 seconds
     """
     def upload_to_database(self):
@@ -308,19 +311,13 @@ class platescanner:
                                     cursor.execute(sql, (plate, self.buffer[plate]))
                                     #commit the changes
                                     self.connection.commit()
-                            
                                 #upload the results to the database
                                 print(f"'{plate}' uploaded to database!")
                             except pymysql.err.OperationalError as e:
                                 print(f"Error uploading '{plate}' to database: {e}")
-                                self.reconnect()    #reconnect to the database if the connection is lost -> hangs the program
-                                with self.connection.cursor() as cursor:
-                                    #create the sql query again
-                                    sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                                    #execute the query again
-                                    cursor.execute(sql, (plate, self.buffer[plate]))
-                                    #commit the changes
-                                    self.connection.commit()                            
+                                print("Storing results locally... (will upload when connection is restored)")
+                                with open(f"{plate}", 'wb') as f:
+                                    f.write(self.buffer[plate])
                 else:
                     print("Printing results...")
                     #loop over the buffer
@@ -377,9 +374,7 @@ if __name__ == '__main__':
     ap.add_argument("-c", "--camera", type=bool, default=False,
                     help="Use the USB webcam? Default: False")
     ap.add_argument("-d", "--database", type=bool, default=False,
-                    help="Connect to a database? Default: False")        
-    ap.add_argument("-e", "--edgetpu", action='store_true', 
-                    help="Use EdgeTPU?")
+                    help="Connect to a database? Default: False")
     args = vars(ap.parse_args())
 
     # define the arguments
@@ -387,7 +382,6 @@ if __name__ == '__main__':
     filter_file = args['filterpath']
     cam_setting = args['camera']
     database = args['database']
-    edgetpu = args['edgetpu']
     
     # open the filter file
     try:
@@ -422,44 +416,34 @@ if __name__ == '__main__':
     pkg = importlib.util.find_spec('tflite_runtime')
     if pkg:
         from tflite_runtime.interpreter import Interpreter
-        if edgetpu:
-            from tflite_runtime.interpreter import load_delegate
-            from pycoral.utils.edgetpu import make_interpreter
     else:
         from tensorflow.lite.python.interpreter import Interpreter
-        if edgetpu:
-            from tensorflow.lite.python.interpreter import load_delegate
-            from pycoral.utils.edgetpu import make_interpreter
 
     # Load the Tensorflow Lite model into memory 
-    if edgetpu:
-        interpreter = make_interpreter(model_path)
-    else:
-        interpreter = Interpreter(model_path=model_path)
+    interpreter = Interpreter(model_path=model_path)
 
     # Allocate memory for the model
     interpreter.allocate_tensors()
 
     # Get model details
-    if not edgetpu:
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        height = input_details[0]['shape'][1]
-        width = input_details[0]['shape'][2]
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    height = input_details[0]['shape'][1]
+    width = input_details[0]['shape'][2]
 
-        floating_model = (input_details[0]['dtype'] == np.float32)
+    floating_model = (input_details[0]['dtype'] == np.float32)
 
-        input_mean = 127.5
-        input_std = 127.5
+    input_mean = 127.5
+    input_std = 127.5
 
-        # Check output layer name to determine if this model was created with TF2 or TF1,
-        # because outputs are ordered differently for TF2 and TF1 models
-        outname = output_details[0]['name']
+    # Check output layer name to determine if this model was created with TF2 or TF1,
+    # because outputs are ordered differently for TF2 and TF1 models
+    outname = output_details[0]['name']
 
-        if ('StatefulPartitionedCall' in outname): # This is a TF2 model
-            boxes_idx, classes_idx, scores_idx = 1, 3, 0
-        else: # This is a TF1 model
-            boxes_idx, classes_idx, scores_idx = 0, 1, 2
+    if ('StatefulPartitionedCall' in outname): # This is a TF2 model
+        boxes_idx, classes_idx, scores_idx = 1, 3, 0
+    else: # This is a TF1 model
+        boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
     # Initialize the scanner
     scanner = platescanner(filter=filter, interpreter=interpreter,sqlconnector=conn, usbwebcam=cam_setting)
