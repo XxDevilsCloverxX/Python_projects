@@ -433,7 +433,7 @@ if __name__ == '__main__':
 
     # Load the Tensorflow Lite model into memory 
     if edgetpu:
-        interpreter = make_interpreter(model_path=model_path, delegate=load_delegate('libedgetpu.so.1.0'))
+        interpreter = make_interpreter(model_path)
     else:
         interpreter = Interpreter(model_path=model_path)
 
@@ -441,24 +441,25 @@ if __name__ == '__main__':
     interpreter.allocate_tensors()
 
     # Get model details
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    height = input_details[0]['shape'][1]
-    width = input_details[0]['shape'][2]
+    if not edgetpu:
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        height = input_details[0]['shape'][1]
+        width = input_details[0]['shape'][2]
 
-    floating_model = (input_details[0]['dtype'] == np.float32)
+        floating_model = (input_details[0]['dtype'] == np.float32)
 
-    input_mean = 127.5
-    input_std = 127.5
+        input_mean = 127.5
+        input_std = 127.5
 
-    # Check output layer name to determine if this model was created with TF2 or TF1,
-    # because outputs are ordered differently for TF2 and TF1 models
-    outname = output_details[0]['name']
+        # Check output layer name to determine if this model was created with TF2 or TF1,
+        # because outputs are ordered differently for TF2 and TF1 models
+        outname = output_details[0]['name']
 
-    if ('StatefulPartitionedCall' in outname): # This is a TF2 model
-        boxes_idx, classes_idx, scores_idx = 1, 3, 0
-    else: # This is a TF1 model
-        boxes_idx, classes_idx, scores_idx = 0, 1, 2
+        if ('StatefulPartitionedCall' in outname): # This is a TF2 model
+            boxes_idx, classes_idx, scores_idx = 1, 3, 0
+        else: # This is a TF1 model
+            boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
     # Initialize the scanner
     scanner = platescanner(filter=filter, interpreter=interpreter,sqlconnector=conn, usbwebcam=cam_setting)
