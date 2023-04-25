@@ -190,7 +190,7 @@ class platescanner:
                 xmax = int(min(imW,(boxes[i][3] * imW)))
 
                 #add the detection to the dictionary: these align with the original coordinates
-                detections.update({i: (xmin, ymin, xmax, ymax)})
+                detections.update({i: ((xmin, ymin, xmax, ymax), scores[i])})
        
         return detections
 
@@ -200,14 +200,15 @@ class platescanner:
     """
     def read_plate(self, plate_img):
         # read the plate
-        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 7', nice=0, output_type="dict")
+        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 12', nice=0, output_type="dict")
         
-        # get the words with a confidence of 15 or higher
+        # get the words with a confidence of 30 or higher
         words = []
         for i, word in enumerate(results['text']):
             conf = int(results['conf'][i])
-            if conf >= 15:
+            if conf >= 30:
                 words.append(word)
+                #print(f"Conf: {conf} | Word: {word}")
         
         # join the words together
         plate_text = "".join(words)
@@ -248,7 +249,7 @@ class platescanner:
             # loop over the detections
             for i, detection in detections.items():
                 # get the coordinates
-                xmin, ymin, xmax, ymax = detection
+                xmin, ymin, xmax, ymax = detection[0]
 
                 # get the original plate image
                 plate_img = frame[ymin:ymax, xmin:xmax]
@@ -258,20 +259,23 @@ class platescanner:
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
                 copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
-                copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
+                copy = cv2.GaussianBlur(copy, (3,3), 0)
                 thresh = cv2.adaptiveThreshold(copy, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-
+                thresh = cv2.blur(thresh, (3,3))
+                # save the frame with the plate drawn on it
+                cv2.imwrite(f"outputs/frame{i}.jpeg", copy)
+                
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
                 close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
                 result = 255 - close
-
                 cv2.imwrite(f"outputs/result{i}.jpeg", result)
+                
                 # read the plate text
                 plate_text = self.read_plate(result)
 
-                # check if text was detected
-                if plate_text != "":
-                    print(plate_text)
+                # check if text was detected or the confidence is high enough
+                if plate_text != "" or detection[1] >= 0.60:
+                    print(f"Plate: {plate_text}")
                     # create a byte stream obj to store the image data
                     crop.save(self.stream, format="JPEG")
                     
@@ -284,9 +288,6 @@ class platescanner:
 
                     # add the plate text, image, and time to the buffer
                     self.buffer.update({plate_text: image_data})
-
-                    # save the frame with the plate drawn on it
-                    cv2.imwrite(f"outputs/frame{i}.jpeg", copy)
     
     """
     @Author xdevilscloverx
@@ -302,7 +303,7 @@ class platescanner:
                     print("Uploading results to database...")
                     #loop over the buffer
                     for i, plate in enumerate(self.buffer.keys()):
-                        if plate not in self.shift_buffer.keys():
+                        if plate not in self.shift_buffer.keys() or plate == "":
                             try:
                                 with self.connection.cursor() as cursor:
                                     #create the sql query
