@@ -274,7 +274,7 @@ class platescanner:
                 plate_text = self.read_plate(result)
 
                 # check if text was detected or the confidence is high enough
-                if plate_text != "" or detection[1] >= 0.60:
+                if plate_text != "" or detection[1] >= 0.70:
                     print(f"Plate: {plate_text}")
                     # create a byte stream obj to store the image data
                     crop.save(self.stream, format="JPEG")
