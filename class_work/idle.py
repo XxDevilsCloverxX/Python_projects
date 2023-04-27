@@ -34,7 +34,7 @@ def main():
     #run the loop that will move mouse but stop after timeout:
     while (end - start < timeout):
         gui.click(x=x1, y=y1)
-        time.sleep(1)
+        time.sleep(10)
         gui.click(x=x2, y=y2)
         end = int(time.time())
         print(f"Time: {end - start} / {timeout}")
