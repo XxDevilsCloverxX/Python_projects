@@ -8,13 +8,11 @@ from tensorflow.lite.python.interpreter import Interpreter
 import argparse
 from PIL import Image
 from io import BytesIO  #used to convert the image to a byte stream
-import pytesseract
+from easyocr import Reader
 from threading import Thread
 import importlib.util
 import time
 import sys
-from glob import glob   #used to get the list of files in a directory
-import os
 
 """
 @Author xdevilscloverx
@@ -42,6 +40,10 @@ class platescanner:
         self.usbwebcam = usbwebcam  #determine if the camera is a usb webcam or a pi camera
         self.threads = []           #list of threads
         self.stop = False           #boolean to stop the threads
+        self.easyreader = Reader(["en"])    #easy ocr reader for plates
+        self.crop = None            #crop of the plate
+        self.plate_text = ""        #text of the plate
+
         #create the appropriate video stream
         if self.usbwebcam:
             #create a video capture object
@@ -74,22 +76,6 @@ class platescanner:
         
         if self.connection is not None:
             self.connected = True
-            # upload plates from previous runs
-            for file in glob(os.path.join(os.getcwd(), "outputs", "reconnect", "*.bin")):
-                filename = file.split("\\")[-1]    #get the filename not extension
-                try:
-                    with self.connection.cursor() as cursor:
-                        #create the sql query
-                        sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                        #execute the query
-                        cursor.execute(sql, (filename, file))
-                        #commit the changes
-                        self.connection.commit()
-                    #upload the results to the database
-                    print(f"'{filename}' uploaded to database!")
-                except pymysql.err.OperationalError as e:
-                    print(f"Error uploading '{filename}' to database: {e}")
-                    
         else:
             self.connected = False
 
@@ -125,25 +111,18 @@ class platescanner:
         #create a thread to read the frame
         self.readthread = Thread(target=self.readframe, args=())
         self.handler = Thread(target=self.handle_frame, args=())
+        self.crop_read = Thread(target=self.read_plate, args=())
         self.uploader = Thread(target=self.upload_to_database, args=())
+        self.threads.append(self.crop_read)
         self.threads.append(self.readthread)
         self.threads.append(self.handler)
         self.threads.append(self.uploader)
-        self.stop = False   #set stop to false to start the threads
+
         #start the threads
         for thread in self.threads:
             thread.start()
         return self
     
-    """
-    Stop the threads
-    """
-    def stop_threads(self):
-        self.stop = True
-        for thread in self.threads:
-            thread.join()
-        self.threads.clear()
-
     """
     @Author xdevilscloverx
     @Description: This function takes a frame and returns a dictionary of the detected plates and their coordinates
@@ -190,7 +169,7 @@ class platescanner:
                 xmax = int(min(imW,(boxes[i][3] * imW)))
 
                 #add the detection to the dictionary: these align with the original coordinates
-                detections.update({i: ((xmin, ymin, xmax, ymax), scores[i])})
+                detections.update({i: (xmin, ymin, xmax, ymax)})
        
         return detections
 
@@ -198,41 +177,36 @@ class platescanner:
     @Author xdevilscloverx
     @Description: This function takes a frame and returns a string of the detected plate
     """
-    def read_plate(self, plate_img):
-        # read the plate
-        results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 12', nice=0, output_type="dict")
-        
-        # get the words with a confidence of 30 or higher
-        words = []
-        for i, word in enumerate(results['text']):
-            conf = int(results['conf'][i])
-            if conf >= 30:
-                words.append(word)
-                #print(f"Conf: {conf} | Word: {word}")
-        
-        # join the words together
-        plate_text = "".join(words)
-        plate_text = [char.upper() for char in plate_text if char.isalnum()]    #remove special characters
-        plate_text = "".join(plate_text)    #join the characters together
-        
-        # filter out the states
-        if self.filter is not None:
-            for state in self.filter:
-                if state.upper() in plate_text:
-                    plate_text = plate_text.replace(state.upper(), '')  #remove the state from the plate text
+    def read_plate(self):
+        while not self.stop:
+            if self.crop != None:
+                plate_img = self.crop
+                # read the plate
+                #results = pytesseract.image_to_data(plate_img, lang = "en", config='-l eng --psm 7', nice=0, output_type="dict")
+                results = self.easyreader.readtext(plate_img, detail=0)
+                        
+                # join the words together
+                plate_text = "".join(results)
+                plate_text = [char.upper() for char in plate_text if char.isalnum()]    #remove special characters
+                plate_text = "".join(plate_text)    #join the characters together
+                
+                # filter out the states
+                if self.filter is not None:
+                    for state in self.filter:
+                        if state.upper() in plate_text:
+                            plate_text = plate_text.replace(state.upper(), '')  #remove the state from the plate text
 
-        # return a max of 8 characters
-        if len(plate_text) > 8:
-            plate_text = plate_text[:8]
+                # return a max of 8 characters
+                if len(plate_text) > 8:
+                    plate_text = plate_text[:8]
 
-        elif len(plate_text) < 4:
-            plate_text = "" #return an empty string if the plate is too small
+                elif len(plate_text) < 4:
+                    plate_text = "" #return an empty string if the plate is too small
 
-        if plate_text.isnumeric():
-            plate_text = "" #return an empty string if the plate is all numbers
+        #        if plate_text.isnumeric():
+        #            plate_text = "" #return an empty string if the plate is all numbers
 
-        # return the plate text
-        return plate_text
+                self.plate_text = plate_text    #set the plate text
    
     """
     @Author xdevilscloverx
@@ -249,7 +223,7 @@ class platescanner:
             # loop over the detections
             for i, detection in detections.items():
                 # get the coordinates
-                xmin, ymin, xmax, ymax = detection[0]
+                xmin, ymin, xmax, ymax = detection
 
                 # get the original plate image
                 plate_img = frame[ymin:ymax, xmin:xmax]
@@ -259,23 +233,18 @@ class platescanner:
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
                 copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
-                copy = cv2.GaussianBlur(copy, (3,3), 0)
+                copy = cv2.bilateralFilter(copy, 11, 17, 17)    #remove noise
                 thresh = cv2.adaptiveThreshold(copy, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-                thresh = cv2.blur(thresh, (3,3))
-                # save the frame with the plate drawn on it
-                cv2.imwrite(f"outputs/frame{i}.jpeg", copy)
-                
+
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
                 close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
                 result = 255 - close
+                self.crop = result
                 cv2.imwrite(f"outputs/result{i}.jpeg", result)
-                
-                # read the plate text
-                plate_text = self.read_plate(result)
 
-                # check if text was detected or the confidence is high enough
-                if plate_text != "" or detection[1] >= 0.70:
-                    print(f"Plate: {plate_text}")
+                # check if text was detected
+                if self.plate_text != "":
+                    print(self.plate_text)
                     # create a byte stream obj to store the image data
                     crop.save(self.stream, format="JPEG")
                     
@@ -287,7 +256,34 @@ class platescanner:
                     self.stream.truncate()   #clear the stream
 
                     # add the plate text, image, and time to the buffer
-                    self.buffer.update({plate_text: image_data})
+                    self.buffer.update({self.plate_text: image_data})
+
+                    # save the frame with the plate drawn on it
+                    cv2.imwrite(f"outputs/frame{i}.jpeg", copy)
+    
+    """
+    @Author xdevilscloverx
+    @Description: This function resets the connection to the database
+    """
+    def reconnect(self):
+        while True:
+            try:
+                self.stop = True #stop the handle frame thread from running while reconnecting
+                for thread in self.threads:
+                    thread.join()   #wait for all threads to finish
+                self.connection.ping(reconnect=True)
+                print("Pinging...")
+            except pymysql.err.OperationalError:
+                print("Lost connection, reconnecting...")
+                time.sleep(5)
+                self.connected = False  #set the connection to false
+                continue
+            print("Connection is alive")
+            self.stop = False    #start the handle frame thread again
+            self.connected = True   #set the connection to true
+            for thread in self.threads:
+                thread.start()  #start all threads again
+            return
     
     """
     @Author xdevilscloverx
@@ -303,7 +299,7 @@ class platescanner:
                     print("Uploading results to database...")
                     #loop over the buffer
                     for i, plate in enumerate(self.buffer.keys()):
-                        if plate not in self.shift_buffer.keys() or plate == "":
+                        if plate not in self.shift_buffer.keys():
                             try:
                                 with self.connection.cursor() as cursor:
                                     #create the sql query
@@ -312,13 +308,19 @@ class platescanner:
                                     cursor.execute(sql, (plate, self.buffer[plate]))
                                     #commit the changes
                                     self.connection.commit()
+                            
                                 #upload the results to the database
                                 print(f"'{plate}' uploaded to database!")
                             except pymysql.err.OperationalError as e:
                                 print(f"Error uploading '{plate}' to database: {e}")
-                                print("Storing results locally... (will upload when connection is restored)")
-                                with open(f"{plate}", 'wb') as f:
-                                    f.write(self.buffer[plate])
+                                self.reconnect()    #reconnect to the database if the connection is lost -> hangs the program
+                                with self.connection.cursor() as cursor:
+                                    #create the sql query again
+                                    sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                    #execute the query again
+                                    cursor.execute(sql, (plate, self.buffer[plate]))
+                                    #commit the changes
+                                    self.connection.commit()                            
                 else:
                     print("Printing results...")
                     #loop over the buffer
@@ -375,7 +377,9 @@ if __name__ == '__main__':
     ap.add_argument("-c", "--camera", type=bool, default=False,
                     help="Use the USB webcam? Default: False")
     ap.add_argument("-d", "--database", type=bool, default=False,
-                    help="Connect to a database? Default: False")
+                    help="Connect to a database? Default: False")        
+    ap.add_argument("-e", "--edgetpu", action='store_true', 
+                    help="Use EdgeTPU?")
     args = vars(ap.parse_args())
 
     # define the arguments
@@ -383,6 +387,7 @@ if __name__ == '__main__':
     filter_file = args['filterpath']
     cam_setting = args['camera']
     database = args['database']
+    edgetpu = args['edgetpu']
     
     # open the filter file
     try:
@@ -417,34 +422,44 @@ if __name__ == '__main__':
     pkg = importlib.util.find_spec('tflite_runtime')
     if pkg:
         from tflite_runtime.interpreter import Interpreter
+        if edgetpu:
+            from tflite_runtime.interpreter import load_delegate
+            from pycoral.utils.edgetpu import make_interpreter
     else:
         from tensorflow.lite.python.interpreter import Interpreter
+        if edgetpu:
+            from tensorflow.lite.python.interpreter import load_delegate
+            from pycoral.utils.edgetpu import make_interpreter
 
     # Load the Tensorflow Lite model into memory 
-    interpreter = Interpreter(model_path=model_path)
+    if edgetpu:
+        interpreter = make_interpreter(model_path)
+    else:
+        interpreter = Interpreter(model_path=model_path)
 
     # Allocate memory for the model
     interpreter.allocate_tensors()
 
     # Get model details
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    height = input_details[0]['shape'][1]
-    width = input_details[0]['shape'][2]
+    if not edgetpu:
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        height = input_details[0]['shape'][1]
+        width = input_details[0]['shape'][2]
 
-    floating_model = (input_details[0]['dtype'] == np.float32)
+        floating_model = (input_details[0]['dtype'] == np.float32)
 
-    input_mean = 127.5
-    input_std = 127.5
+        input_mean = 127.5
+        input_std = 127.5
 
-    # Check output layer name to determine if this model was created with TF2 or TF1,
-    # because outputs are ordered differently for TF2 and TF1 models
-    outname = output_details[0]['name']
+        # Check output layer name to determine if this model was created with TF2 or TF1,
+        # because outputs are ordered differently for TF2 and TF1 models
+        outname = output_details[0]['name']
 
-    if ('StatefulPartitionedCall' in outname): # This is a TF2 model
-        boxes_idx, classes_idx, scores_idx = 1, 3, 0
-    else: # This is a TF1 model
-        boxes_idx, classes_idx, scores_idx = 0, 1, 2
+        if ('StatefulPartitionedCall' in outname): # This is a TF2 model
+            boxes_idx, classes_idx, scores_idx = 1, 3, 0
+        else: # This is a TF1 model
+            boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
     # Initialize the scanner
     scanner = platescanner(filter=filter, interpreter=interpreter,sqlconnector=conn, usbwebcam=cam_setting)
