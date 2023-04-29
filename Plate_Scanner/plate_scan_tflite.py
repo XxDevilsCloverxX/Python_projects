@@ -229,7 +229,7 @@ class platescanner:
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
                 copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
-
+                
                 plate_text = self.read_plate(copy)
 
                 # check if text was detected
@@ -255,54 +255,52 @@ class platescanner:
     @Description: This function uploads the results to the database or prints the results to the console every 10 seconds
     """
     def upload_to_database(self):
-        while not self.stop:
-            i = -1  #initialize the default index for printing
-            #check if 5 seconds have passed
-            if datetime.now() - self.time > timedelta(seconds=5):
-                self.time = datetime.now()   #reset the timer
-                if self.connected:
-                    print("Uploading results to database...")
-                    #loop over the buffer
-                    for i, plate in enumerate(self.buffer.keys()):
-                        if plate not in self.shift_buffer.keys():
-                            try:
-                                with self.connection0.cursor() as cursor:
-                                    #create the sql query
-                                    sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                                    #execute the query
-                                    cursor.execute(sql, (plate, self.buffer[plate]))
-                                    #commit the changes
-                                    self.connection0.commit()
-                            
-                                #upload the results to the database
-                                print(f"'{plate}' uploaded to database!")
-                            except pymysql.err.OperationalError as e:
-                                print(f"Error uploading '{plate}' to database: {e}")
-                                print("Pushing to alternate DB")
-                                #Upload to mariadb
-                                with self.connection1.cursor() as cursor:
-                                    #create the sql query
-                                    sql = "INSERT INTO `licenseplates` (`license_pl`, `plate_img`) VALUES (%s, %s)"
-                                    #execute the query
-                                    cursor.execute(sql, (plate, self.buffer[plate]))
-                                    #commit the changes
-                                    self.connection1.commit()
-                else:
-                    print("Printing results...")
-                    #loop over the buffer
-                    for i, plate in enumerate(self.buffer.keys()):
-                        if plate not in self.shift_buffer.keys():
-                            print(f"{plate}")  #print the plate
+        i = -1  #initialize the default index for printing
+        #check if 5 seconds have passed
+        if datetime.now() - self.time > timedelta(seconds=5):
+            self.time = datetime.now()   #reset the timer
+            if self.connected:
+                print("Uploading results to database...")
+                #loop over the buffer
+                for i, plate in enumerate(self.buffer.keys()):
+                    if plate not in self.shift_buffer.keys():
+                        try:
+                            with self.connection0.cursor() as cursor:
+                                #create the sql query
+                                sql = "INSERT INTO `licenses` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                #execute the query
+                                cursor.execute(sql, (plate, self.buffer[plate]))
+                                #commit the changes
+                                self.connection0.commit()
+                        
+                            #upload the results to the database
+                            print(f"'{plate}' uploaded to database!")
+                        except pymysql.err.OperationalError as e:
+                            print(f"Error uploading '{plate}' to database: {e}")
+                            print("Pushing to alternate DB")
+                            #Upload to mariadb
+                            with self.connection1.cursor() as cursor:
+                                #create the sql query
+                                sql = "INSERT INTO `licenseplates` (`license_pl`, `plate_img`) VALUES (%s, %s)"
+                                #execute the query
+                                cursor.execute(sql, (plate, self.buffer[plate]))
+                                #commit the changes
+                                self.connection1.commit()
+            else:
+                print("Printing results...")
+                #loop over the buffer
+                for i, plate in enumerate(self.buffer.keys()):
+                    if plate not in self.shift_buffer.keys():
+                        print(f"{plate}")  #print the plate
 
-                print(f"{i+1} results captured + pushed!")
+            print(f"{i+1} results captured + pushed!")
 
-                #update the time buffer
-                self.shift_buffer.clear()              #clear the time buffer before updating
-                self.shift_buffer.update(self.buffer)  #update the time buffer
-                #print(self.time_buffer.keys())               #print the time buffer -> show plate when empty!
-                
-                #clear the buffer
-                self.buffer.clear()
+            #update the time buffer
+            self.shift_buffer.clear()              #clear the time buffer before updating
+            self.shift_buffer.update(self.buffer)  #update the time buffer
+            
+            #clear the buffer
+            self.buffer.clear()
 
     """
     @Author xdevilscloverx
