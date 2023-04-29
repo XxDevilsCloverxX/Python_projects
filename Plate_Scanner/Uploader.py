@@ -1,7 +1,7 @@
 import pymysql
 import os
 from glob import glob
-import BytesIO
+from io import BytesIO
 import argparse
 from easyocr import Reader
 import cv2
@@ -53,16 +53,18 @@ def get_ocr_results(image, filter):
     elif len(plate_text) < 4:
         plate_text = "" #return an empty string if the plate is too small
 
+    print(f"Plate text: {plate_text}")
+
     return plate_text    #set the plate text
         
 def get_ocr_results_from_dir(directory, filter):
     ocrdict = {}    #initialize the dictionary
     stream = BytesIO()  #initialize the stream
     #loop over the files in the directory
-    for file in glob(os.path.join(directory, "*.jpeg")):
+    for file in glob(directory + "/*.jpeg"):
         #open the file
         image = cv2.imread(file)
-        image = cv2.cvtColor(file, cv2.COLOR_BGR2GRAY)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         crop = Image.open(file)
         #get the plate text
         plate_text = get_ocr_results(image, filter)
