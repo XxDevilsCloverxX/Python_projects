@@ -28,9 +28,10 @@ class platescanner:
                     usbwebcam - a boolean to determine if the camera is a usb webcam or a pi camera
                     sqlconnector - the sql connector object
     """
-    def __init__(self, filter=None, interpreter=None, usbwebcam=False, sqlconnector0=None, sqlconnector1=None):
+    def __init__(self, filter=None, interpreter=None, usbwebcam=False, sqlconnector0=None, sqlconnector1=None, litemode= False):
         # initalize objects that the class will use
         self.filter = filter    #filter out the states
+        self.mode = litemode    #determine if the model is lite or not
         self.model = interpreter    #tflite model
         self.connection0 = sqlconnector0   #database connection
         self.connection1 = sqlconnector1
@@ -42,7 +43,7 @@ class platescanner:
         self.threads = []           #list of threads
         self.stop = False           #boolean to stop the threads
         self.easyreader = Reader(["en"])    #easy ocr reader for plates
-
+        self.filesavecount = 0      #count to save the file
         #create the appropriate video stream
         if self.usbwebcam:
             #create a video capture object
@@ -225,12 +226,19 @@ class platescanner:
                 plate_img = frame[ymin:ymax, xmin:xmax]
 
                 crop = Image.fromarray(plate_img)
-                crop.save(f"outputs/crop{i}.jpeg")
+                crop.save(f"outputs/crop{i+self.filesavecount}.jpeg")
+                self.filesavecount += 1
 
                 copy = cv2.imread(f"outputs/crop{i}.jpeg")
                 copy = cv2.cvtColor(copy, cv2.COLOR_BGR2GRAY)
                 
-                plate_text = self.read_plate(copy)
+                if not self.litemode:
+                    # read the plate in realtime
+                    plate_text = self.read_plate(copy)
+                    self.filesavecount = 0
+                else:
+                    # ignore the plate reading and just save the image
+                    continue
 
                 # check if text was detected
                 if (plate_text != "" or conf > .7):
@@ -343,14 +351,17 @@ if __name__ == '__main__':
                     help="Use the USB webcam? Default: False")
     ap.add_argument("-d", "--database", type=bool, default=False,
                     help="Connect to a database? Default: False")        
+    ap.add_argument("-l", "--lite", type=bool, default=False,
+                    help="Skip EasyOCR step and write to directory? Default: False")
     args = vars(ap.parse_args())
+    
 
     # define the arguments
     model_path = args['modelpath']
     filter_file = args['filterpath']
     cam_setting = args['camera']
     database = args['database']
-
+    litemode = args['lite']
     
     # open the filter file
     try:
