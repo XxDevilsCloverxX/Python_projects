@@ -86,7 +86,7 @@ def main(file_path: str, port: int):
         # but Ctrl+C is used to exit the server gracefully.
         try:
             while True:
-                readable, _, _ = select([server_socket], [], [], 1)
+                readable, _, _ = select([server_socket], [], [], 1) # extending here will allow concurrent client connections to the server
                 # when its the server_sockets turn to act on a connection (every 1s)
                 if server_socket in readable:
                     # this try block allows for the server to experience connection interruptions and failures without going offline
@@ -103,7 +103,7 @@ def main(file_path: str, port: int):
                         print(f'Connection closed: {e}')
         # Exit gracefully from the server side - closes socket
         except KeyboardInterrupt:
-            print("Server interrupted. Closing...")
+            print("Server interrupted. Closing...") # exits to bottom
 
 """
     @brief: Due to the GIL, this block is placed at the bottom
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     argv = parser.parse_args()
     main(argv.file, argv.port)
-    exit(0)
+    exit(0) #exit the program
 
 """
 Perks of using JSON serialization on this application:
@@ -166,4 +166,3 @@ Perks of using JSON serialization on this application:
 
     @note: I stuck to built-in packages and file handling in order to preserve extendability across machines
 """
-

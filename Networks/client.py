@@ -78,3 +78,18 @@ if __name__ == "__main__":
     argv = parser.parse_args()
     main(argv.ip, argv.port)
     exit(0)
+
+"""
+    @sources:
+
+        sockets, select + socket methods:
+            https://docs.python.org/3/library/socket.html
+
+        JSON + serialization:
+            https://docs.python.org/3/library/json.html
+        
+        datetime:
+            https://docs.python.org/3/library/datetime.html
+
+    @note: I stuck to built-in packages and file handling in order to preserve extendability across machines
+"""
