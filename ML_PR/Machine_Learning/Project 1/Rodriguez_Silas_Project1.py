@@ -116,7 +116,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='Rodriguez_Silas_Project1.py',
         description='Linear Regression on dataset',
-        epilog='Dep: Numpy, matplotlib, argparse')
+        epilog='Dep: Numpy, matplotlib, pandas, sklearn')
 
     # Add the CSV + max itterations arguments
     parser.add_argument('-f','--csv',
