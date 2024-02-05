@@ -199,7 +199,7 @@ def main(excel:str, limit:int):
     set_v_others = features[:, [0,3,4]] # all rows, ones, features 3 & 4
     class_1_dps = set_v_others[np.where(labels == 1)[0]]
     class_2_dps = set_v_others[np.where(labels != 1)[0]]
-    labels_set_v_others = np.where(labels !=1 , 2, labels)
+    labels_set_v_others = np.where(labels !=1 , -1, labels)
     print(labels_set_v_others)
     weights_LS = leastSquaresClassifier(labels=labels_set_v_others, data=set_v_others)
 
@@ -217,8 +217,8 @@ def main(excel:str, limit:int):
     plt.plot(features[:, 3], -(weights_BP[0] + features[:, 3]*weights_BP[1]) / weights_BP[2], color='blue', label=f'Batch-Perceptron {k} iterations')
     plt.xlabel('Feature 3')
     plt.ylabel('Feature 4')
-    # plt.xlim(-2, 2)
-    # plt.ylim(-2, 2)
+    plt.xlim(-2, 2)
+    plt.ylim(-2, 2)
     plt.legend()
     plt.show()
 
