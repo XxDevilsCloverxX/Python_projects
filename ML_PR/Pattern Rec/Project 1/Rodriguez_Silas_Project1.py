@@ -60,7 +60,7 @@ def batchPerceptron(epochs:int, dataset:np.ndarray, seed:int):
     np.random.seed(seed) # set the seed
     # take an initial guess of the weights based on the columns provided
     weights = np.random.normal(loc=0,scale=1, size=(dataset.shape[1],1))
-    rho_k = 1e-1 # set an initial learning rate
+    rho_k = 1 # set an initial learning rate
     
     for k in range(1,epochs+1):
         missclassifications = []
@@ -99,6 +99,7 @@ def leastSquaresClassifier(labels:np.ndarray, data:np.ndarray):
 def ComputeMisclassLS(weights:np.ndarray, data:np.ndarray):
     """
     @purpose:
+        compute the misclassifications from the least - squares algorithm
     @param:
         weights- weights computed from LS
         data - X matrix of data
@@ -106,23 +107,18 @@ def ComputeMisclassLS(weights:np.ndarray, data:np.ndarray):
         number of points where data.dot(weights) returns 0 or negative values
     """
     predictions = data.dot(weights)
-    # Convert predictions to binary (0 if positive, 1 if negative)
-    binary_predictions = np.where(predictions >= 0, 0, 1)
-    # Count misclassifications
-    num_misclass = np.sum(binary_predictions)
-    return num_misclass    
+    # Convert predictions to closest class
+    predictions = np.round(predictions)
+    # # Count misclassifications
+    # num_misclass = np.sum(binary_predictions)
+    # return num_misclass    
 
-def plotStatistics(df:pd.DataFrame):
+def plotStatistics(df:pd.DataFrame, class_mapping:dict):
     """
     @purpose:
         Take an input data frame and plot some characteristics of its data
         helper function to clean up the main driver function
     """
-    # Create a mapping for each class to a numeric label
-    class_mapping = {'setosa': 1, 'versicolor': 2, 'virginica': 3}
-    
-    # Add a new column 'class_label' with the numeric labels
-    df['species'] = df['species'].map(class_mapping)
     # compute & plot correlation coefficients for all the features with each other and plot to a heat map
     correlation_matrix = df.corr()
     plt.figure(figsize=(10,8))    # create a 10 in x 8 in figure
@@ -179,32 +175,53 @@ def main(excel:str, limit:int):
     print(f'Within-Class Variance:\n{within_class_variance}\n')
     print(f'Between-Class Variance:\n{between_class_variance}\n')
     
+    # Create a mapping for each class to a numeric label
+    class_mapping = {'setosa': 1, 'versicolor': 2, 'virginica': 3}    
+    # Add a new column 'class_label' with the numeric labels
+    df['species'] = df['species'].map(class_mapping)
+
     # Call the plotting helper function
-    df = plotStatistics(df=df)
+    # df = plotStatistics(df=df, class_mapping=class_mapping)
 
     # Standardize the data - preprocessing for batch perceptron
     features = df.drop(columns='species')
     scaler = StandardScaler()
     standardized_data = scaler.fit_transform(features)
     df_standardized = pd.DataFrame(standardized_data, columns=features.columns)
-    df_standardized['species'] = df['species']  # Add the species column back
+    df_standardized['species'] = df['species']              # Add the species column back
 
-    # Performing the Setosa vs Others, All features, Batch Perceptron and LS classifications
-    original_data = df.copy()
-    labels = original_data['species'].to_numpy().reshape(-1,1)
+    df_standardized = df_standardized.to_numpy()            # Time to do matrix math
+    features = df_standardized[:, :-1]                      # Features are all the features - the labels
+    features = np.c_[np.ones(features.shape[0]), features]  # prepend ones column
+    labels = df_standardized[:, -1].reshape(-1,1)           # all the rows, last col
+    
+    ## Performing Setosa vs Others, features 3 & 4, BP and LS Classifiers
+    set_v_others = features[:, [0,3,4]] # all rows, ones, features 3 & 4
+    class_1_dps = set_v_others[np.where(labels == 1)[0]]
+    class_2_dps = set_v_others[np.where(labels != 1)[0]]
+    labels_set_v_others = np.where(labels !=1 , 2, labels)
+    print(labels_set_v_others)
+    weights_LS = leastSquaresClassifier(labels=labels_set_v_others, data=set_v_others)
 
-    setosa_vs_others = df_standardized.copy()
-    mask = df_standardized['species'] != 1
-    setosa_vs_others.loc[mask, setosa_vs_others.columns != 'species'] *= -1
-    setosa_vs_others = setosa_vs_others.drop(columns='species').to_numpy()
-    setosa_vs_others = np.c_[np.ones(setosa_vs_others.shape[0]), setosa_vs_others]  # prepend a col of ones 
-    k, num_misclass, weights_BP = batchPerceptron(epochs=limit, dataset=setosa_vs_others, seed=0)
-    weights_LS = leastSquaresClassifier(labels=labels, data=setosa_vs_others)
-    misclassed_LS = ComputeMisclassLS(weights=weights_LS, data=setosa_vs_others)
-    print(f'{num_misclass} misclassed datapoints BP, \nWeights BP: \n{weights_BP}')
-    print(f'{misclassed_LS} misclassed datapoints LS, \nWeights LS: \n{weights_LS}')
+    # Apply a negative to the batch perceptron datapoints in class 2
+    BP_set_v_others = np.where(labels != 1, set_v_others*-1, set_v_others)
+    k, misclass_count, weights_BP = batchPerceptron(epochs=limit, dataset=BP_set_v_others, seed=0)
+
+    print(weights_BP)
+    print(weights_LS)
     
-    
+    plt.figure(figsize=(10,8))
+    plt.scatter(class_1_dps[:,1],class_1_dps[:,2], marker='x', color='red')
+    plt.scatter(class_2_dps[:,1],class_2_dps[:,2], marker='o', color='blue')
+    plt.plot(features[:, 3], -(weights_LS[0] + features[:, 3]*weights_LS[1]) / weights_LS[2], color='black', label='Least-Squares')
+    plt.plot(features[:, 3], -(weights_BP[0] + features[:, 3]*weights_BP[1]) / weights_BP[2], color='blue', label=f'Batch-Perceptron {k} iterations')
+    plt.xlabel('Feature 3')
+    plt.ylabel('Feature 4')
+    # plt.xlim(-2, 2)
+    # plt.ylim(-2, 2)
+    plt.legend()
+    plt.show()
+
 
 if __name__ == '__main__':
     # Create an argument parser
