@@ -58,14 +58,17 @@ def batchPerceptron(epochs:int, dataset:np.ndarray, seed:int):
         len(misclassifications) - # of misclassified features
     """
     np.random.seed(seed) # set the seed
+
+    # Augment the dataset with ones column
+    X = np.c_[np.ones(dataset.shape[0]), dataset]
+
     # take an initial guess of the weights based on the columns provided
-    weights = np.random.normal(loc=0,scale=1, size=(dataset.shape[1],1))
+    weights = np.random.normal(loc=0,scale=1, size=(X.shape[1],1))
     rho_k = 1 # set an initial learning rate
     
     for k in range(1,epochs+1):
         missclassifications = []
-        rho_k *= .8
-        for row in dataset:        
+        for row in X:        
             # compute the class of the row with the weight vector
             classification = weights.T.dot(row)
             # if the classification is negative, append to the missclassifications
@@ -93,10 +96,12 @@ def leastSquaresClassifier(labels:np.ndarray, data:np.ndarray):
     @return:
         weights- weights that map data to labels
     """
-    weights = np.linalg.pinv(data).dot(labels)
+    # augment the data with a row of ones
+    X = np.c_[np.ones(data.shape[0]), data]
+    weights = np.linalg.pinv(X).dot(labels)
     return weights
 
-def ComputeMisclassLS(weights:np.ndarray, data:np.ndarray):
+def ComputeMisclassCount(weights:np.ndarray, data:np.ndarray, labels:np.ndarray):
     """
     @purpose:
         compute the misclassifications from the least - squares algorithm
@@ -161,7 +166,6 @@ def plotStatistics(df:pd.DataFrame, class_mapping:dict):
 
     plt.tight_layout()  # adjust for better spacing
     plt.show()  # show both plots
-    return df
 
 def main(excel:str, limit:int):
     """
@@ -181,46 +185,18 @@ def main(excel:str, limit:int):
     df['species'] = df['species'].map(class_mapping)
 
     # Call the plotting helper function
-    # df = plotStatistics(df=df, class_mapping=class_mapping)
+    plotStatistics(df=df, class_mapping=class_mapping)
 
-    # Standardize the data - preprocessing for batch perceptron
+    # Standardize the data - preprocessing for batch perceptron + Least Squares
     features = df.drop(columns='species')
     scaler = StandardScaler()
     standardized_data = scaler.fit_transform(features)
     df_standardized = pd.DataFrame(standardized_data, columns=features.columns)
-    df_standardized['species'] = df['species']              # Add the species column back
-
-    df_standardized = df_standardized.to_numpy()            # Time to do matrix math
-    features = df_standardized[:, :-1]                      # Features are all the features - the labels
-    features = np.c_[np.ones(features.shape[0]), features]  # prepend ones column
-    labels = df_standardized[:, -1].reshape(-1,1)           # all the rows, last col
+    df_standardized['species'] = df['species']         # Add the species column back
+    dataMatrix = df_standardized.to_numpy()            # Time to do matrix math
     
-    ## Performing Setosa vs Others, features 3 & 4, BP and LS Classifiers
-    set_v_others = features[:, [0,3,4]] # all rows, ones, features 3 & 4
-    class_1_dps = set_v_others[np.where(labels == 1)[0]]
-    class_2_dps = set_v_others[np.where(labels != 1)[0]]
-    labels_set_v_others = np.where(labels !=1 , -1, labels)
-    print(labels_set_v_others)
-    weights_LS = leastSquaresClassifier(labels=labels_set_v_others, data=set_v_others)
-
-    # Apply a negative to the batch perceptron datapoints in class 2
-    BP_set_v_others = np.where(labels != 1, set_v_others*-1, set_v_others)
-    k, misclass_count, weights_BP = batchPerceptron(epochs=limit, dataset=BP_set_v_others, seed=0)
-
-    print(weights_BP)
-    print(weights_LS)
-    
-    plt.figure(figsize=(10,8))
-    plt.scatter(class_1_dps[:,1],class_1_dps[:,2], marker='x', color='red')
-    plt.scatter(class_2_dps[:,1],class_2_dps[:,2], marker='o', color='blue')
-    plt.plot(features[:, 3], -(weights_LS[0] + features[:, 3]*weights_LS[1]) / weights_LS[2], color='black', label='Least-Squares')
-    plt.plot(features[:, 3], -(weights_BP[0] + features[:, 3]*weights_BP[1]) / weights_BP[2], color='blue', label=f'Batch-Perceptron {k} iterations')
-    plt.xlabel('Feature 3')
-    plt.ylabel('Feature 4')
-    plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
-    plt.legend()
-    plt.show()
+    # Compute the least-squares weights for features 3 & 4 & setosa vs others 2 - class
+    print(dataMatrix)
 
 
 if __name__ == '__main__':
