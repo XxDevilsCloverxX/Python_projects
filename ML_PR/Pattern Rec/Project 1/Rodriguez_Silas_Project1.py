@@ -156,7 +156,7 @@ def main():
     # Convert text labels to numerical values
     labels = np.array([class_mapping[label] for label in labels_text])
 
-    #npDescribe(features=features, labels=labels, df=df)
+    npDescribe(features=features, labels=labels, df=df)
 
     # Standardize the data:
     scaler = StandardScaler()
