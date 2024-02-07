@@ -301,15 +301,15 @@ def main():
     y2_line = -(W_matrix[0, 1] + W_matrix[1, 1] * xline) / W_matrix[2, 1]
     y3_line = -(W_matrix[0, 2] + W_matrix[1, 2] * xline) / W_matrix[2, 2]
 
-    d12 = y1_line - y2_line
-    d13 = y1_line - y3_line
-    d23 = y2_line - y3_line
+    d01 = y1_line - y2_line
+    d02 = y1_line - y3_line
+    d12 = y2_line - y3_line
 
     plt.scatter(features_part5[:,1], features_part5[:,2], cmap='rainbow_r', c=labels_part5, marker='^')
     plt.colorbar(label='Class labels')
-    plt.plot(xline, d12, color='green', label='d12')
-    plt.plot(xline, d13, color='purple', label='d13')
-    plt.plot(xline, d23, color='orange', label='d23')
+    plt.plot(xline, d01, color='green', label='d01')
+    plt.plot(xline, d02, color='purple', label='d02')
+    plt.plot(xline, d12, color='orange', label='d12')
     plt.xlabel('Feature 3')
     plt.ylabel('Feature 4')
     plt.xlim(-2,2)
