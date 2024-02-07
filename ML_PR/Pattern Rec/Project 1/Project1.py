@@ -104,31 +104,31 @@ for k, cluster in enumerate(clusters):
 Sb = np.sum(Sb, axis=0)
 print(f'Between-Class Variance: {Sb}')
 
-# # Compute the correlation matrix
-# df[:, -1] = labels
-# col_names = ['SepalL', 'SepalW', 'PetalL', 'PetalW', 'Species']
-# df = DataFrame(df,columns=col_names)
-# corr_matrix = df.corr()
-# plt.figure(figsize=(10,8))    # create a 10 in x 8 in figure
-# sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=.5)
-# plt.title('Correlation Heatmap')
+# Compute the correlation matrix
+df[:, -1] = labels
+col_names = ['SepalL', 'SepalW', 'PetalL', 'PetalW', 'Species']
+df = DataFrame(df,columns=col_names)
+corr_matrix = df.corr()
+plt.figure(figsize=(10,8))    # create a 10 in x 8 in figure
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=.5)
+plt.title('Correlation Heatmap')
 
-# # Plot each feature against the class label in a loop
-# features_columns = df.columns[:-1]  # Exclude the last column (label)
-# num_features = len(features_columns)
+# Plot each feature against the class label in a loop
+features_columns = df.columns[:-1]  # Exclude the last column (label)
+num_features = len(features_columns)
 
-# plt.figure(figsize=(10, 8))
+plt.figure(figsize=(10, 8))
 
-# for i, feature in enumerate(features_columns, start=1):
-#     plt.subplot(2, 2, i)
-#     plt.scatter(df[feature], df['Species'], marker='x', color='red')
-#     plt.title(f'{feature} vs Species')
-#     plt.xlabel(feature)
-#     plt.ylabel('Species')
-#     plt.xticks(np.arange(0,9,step=2))
+for i, feature in enumerate(features_columns, start=1):
+    plt.subplot(2, 2, i)
+    plt.scatter(df[feature], df['Species'], marker='x', color='red')
+    plt.title(f'{feature} vs Species')
+    plt.xlabel(feature)
+    plt.ylabel('Species')
+    plt.xticks(np.arange(0,9,step=2))
 
-# plt.tight_layout()
-# plt.show()
+plt.tight_layout()
+plt.show()
 
 # print(features, labels)
 
@@ -148,57 +148,60 @@ versi = np.c_[np.ones(versi.shape[0]), versi]
 virgin = features_standardized[labels == class_mapping['virginica']]
 virgin = np.c_[np.ones(virgin.shape[0]), virgin]
 
-# # Compute the weights for LS method on setosa vs others features 3 & 4
-# other = np.vstack((versi, virgin))
-# F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
-# F34_L = np.where(labels != class_mapping['setosa'], -1, labels)
-# weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
-# # Preprocess X for batch perceptron
-# F34_X[F34_L!=1, :] *= -1
-# k, weights_BP = BatchPerceptron(X=F34_X)
+# Compute the weights for LS method on setosa vs others features 3 & 4
+other = np.vstack((versi, virgin))
+F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
+F34_L = np.where(labels != class_mapping['setosa'], -1, labels)
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
 
-# # plot least squares vs scatter data
-# xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
-# yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
-# yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
+# plot least squares vs scatter data
+xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
+yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
+yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
 
-# plt.scatter(setosa[:, 3], setosa[:, 4], marker='x', color='red')
-# plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
-# plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
-# plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
-# plt.xlabel('Feature 3')
-# plt.ylabel('Feature 4')
-# plt.xlim(-2,2)
-# plt.ylim(-2,2)
-# plt.legend()
-# plt.show()
+print(weights_BP)
+print(weights_LS)
 
-# # Compute the weights for LS method on virgi vs others features 3 & 4
-# other = np.vstack((setosa, versi))
-# F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
-# F34_L = np.where(labels != class_mapping['virginica'], -1, labels)
-# F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class -1
+plt.scatter(setosa[:, 3], setosa[:, 4], marker='x', color='red')
+plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
+plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
+plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
+plt.xlabel('Feature 3')
+plt.ylabel('Feature 4')
+plt.xlim(-2,2)
+plt.ylim(-2,2)
+plt.legend()
+plt.show()
 
-# weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
-# # Preprocess X for batch perceptron
-# F34_X[F34_L!=1, :] *= -1
-# k, weights_BP = BatchPerceptron(X=F34_X)
+# Compute the weights for LS method on virgi vs others features 3 & 4
+other = np.vstack((setosa, versi))
+F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
+F34_L = np.where(labels != class_mapping['virginica'], -1, labels)
+F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class -1
 
-# # plot least squares vs scatter data
-# xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
-# yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
-# yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
 
-# plt.scatter(virgin[:, 3], virgin[:, 4], marker='x', color='red')
-# plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
-# plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
-# plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
-# plt.xlabel('Feature 3')
-# plt.ylabel('Feature 4')
-# plt.xlim(-2,2)
-# plt.ylim(-2,2)
-# plt.legend()
-# plt.show()
+# plot least squares vs scatter data
+xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
+yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
+yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
+
+plt.scatter(virgin[:, 3], virgin[:, 4], marker='x', color='red')
+plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
+plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
+plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
+plt.xlabel('Feature 3')
+plt.ylabel('Feature 4')
+plt.xlim(-2,2)
+plt.ylim(-2,2)
+plt.legend()
+plt.show()
 
 # Multiclass LS on features 3 & 4 only
 F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))  # collect our X matrix

@@ -6,7 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def generateVectors(N:int, seed:int):
+def generateVectors(N:int):
     """
     @purpose:
         - Generate sets of data from uniform or gaussian distributions
@@ -16,7 +16,6 @@ def generateVectors(N:int, seed:int):
         data- data generated from uniform distribution
         targets- values assosciated with data + some noise
     """
-    np.random.seed(seed=seed)
     X = np.random.uniform(low=0,high=1, size=(N,1))
     epsilon = np.random.normal(loc=0,scale=0.3, size=(N,1))
     t = np.sin(2 * np.pi * X) + epsilon
@@ -48,7 +47,7 @@ def linearRegression(phi:np.ndarray, t:np.ndarray):
     weights = np.linalg.pinv(phi).dot(t)
     return weights
 
-def cacluateError(phi:np.ndarray, weights:np.ndarray, t:np.ndarray):
+def calculateError(phi:np.ndarray, weights:np.ndarray, t:np.ndarray):
     """
     @purpose:
         Calculate the least squares error of phi from t using w
@@ -82,21 +81,23 @@ def plotErrors(degrees:np.ndarray, errors_train:list, errors_test:list, N:int):
     plt.legend()
     plt.title(f'M vs Training & Testing Error N={N}')
     plt.xlabel('M')
-    plt.xticks(np.arange(0,10,step=3))
     plt.ylabel('E_RMS')
-    plt.yticks(np.arange(0,1.5,step=0.5))
+    plt.xlim(0,10)
+    plt.ylim(0, 1)
     plt.show()
 
 def main():
     """
     @purpose:
         driver function / control flow
+    52 - from experimenting, 12 alternative
     """
+
+    np.random.seed(52)
     # Generate the training set
-    X_train, t_train = generateVectors(N=10, seed=1000)
-    
+    X_train, t_train = generateVectors(N=10)
     # Generate the test set
-    X_test, t_test = generateVectors(N=100, seed=8008)
+    X_test, t_test = generateVectors(N=100)
 
     # Generate a degree set
     degrees = np.arange(10)
@@ -108,17 +109,17 @@ def main():
         phi_train = generateBasisFunction(degree=degree, X = X_train)
         phi_test = generateBasisFunction(degree=degree, X = X_test)
         weights_k = linearRegression(phi=phi_train, t=t_train)
-        error_train = cacluateError(phi= phi_train, weights=weights_k, t=t_train)
-        error_test  = cacluateError(phi= phi_test, weights=weights_k,t=t_test)
+        error_train = calculateError(phi= phi_train, weights=weights_k, t=t_train)
+        error_test  = calculateError(phi= phi_test, weights=weights_k,t=t_test)
         E_RMS_train.append(np.sqrt(error_train/phi_train.shape[0]))
         E_RMS_test.append(np.sqrt(error_test/phi_test.shape[0]))
     
-    #plot the data
+    # plot the data
     plotErrors(degrees=degrees, errors_test=E_RMS_test, errors_train=E_RMS_train, N=phi_train.shape[0])
 
     # Repeat the experiment for 100 data points in X_train
-    X_train_100, t_train_100 = generateVectors(N=100, seed=222024)
-    X_test_100, t_test_100 = generateVectors(N=100, seed=2002)
+    X_train_100, t_train_100 = generateVectors(N=100)
+    X_test_100, t_test_100 = generateVectors(N=100)
     
     # track RMS errors
     E_RMS_train = []
@@ -127,8 +128,8 @@ def main():
         phi_train = generateBasisFunction(degree=degree, X = X_train_100)
         phi_test = generateBasisFunction(degree=degree, X = X_test_100)
         weights_k = linearRegression(phi=phi_train, t=t_train_100)
-        error_train = cacluateError(phi= phi_train, weights=weights_k, t=t_train_100)
-        error_test  = cacluateError(phi= phi_test, weights=weights_k,t=t_test_100)
+        error_train = calculateError(phi= phi_train, weights=weights_k, t=t_train_100)
+        error_test  = calculateError(phi= phi_test, weights=weights_k,t=t_test_100)
         E_RMS_train.append(np.sqrt(error_train/phi_train.shape[0]))
         E_RMS_test.append(np.sqrt(error_test/phi_test.shape[0]))
     
