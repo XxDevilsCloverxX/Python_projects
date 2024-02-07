@@ -2,7 +2,7 @@ from pandas import read_excel, DataFrame
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 
 def LS_2_Classifier(X:np.ndarray, t:np.ndarray):
     """
