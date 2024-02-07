@@ -1,225 +1,362 @@
-"""
-    a) There are 3 classes to this problem: setosa, versicolor, and virginica
-    b) There are 4 features: meas_1,meas_2,meas_3,meas_4: 
-        Assuming this is sepal length, sepal width, pedal length, and pedal width
-    c) After googling images and labels of what an iris sepal and pedal were, as well as
-        examples on all three classes, I think there can be some classifactions that will perform
-        okay, but I feel like there will be significant overlap with this classifier.
-"""
-import argparse
-import pandas as pd
+from pandas import read_excel, DataFrame
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 
-def describeData(dataset: pd.DataFrame):
-    """
-    @purpose: 
-        Describe characteristics of the features such as mins, maxes,
-        mean, variance, coorelation coefficients, 
-    @param:
-        dataset - pd.Dataframe for describing and obtaining these values
-    @return:
-        description - pd.Dataframe with the mins, maxes, means, and variance
-    """
-    # describe the features & compute variance
-    description = dataset.describe()
-    variance = (description.loc['std'])**2
-    description.loc['variance'] = variance
-
-    # Compute P_j terms for probability of a class : C data points / total data points
-    frequencies = dataset['species'].value_counts()
-    total = dataset['species'].count()
-    P_js = frequencies / total # this is the P_j terms
-
-    # Group the data by classes, then extract means and variances
-    grouped_means = dataset.groupby('species').mean()
-    grouped_vars = (dataset.groupby('species').std())**2
-
-    # Compute the within-class variance
-    within_variance = grouped_vars.multiply(P_js, axis='index').sum(axis='columns') # Sum up each row after multiplying the probability with variance
-    
-    # describe between class variance
-    between_variance = ((grouped_means.subtract(description.loc['mean']))**2).multiply(P_js, axis='index').sum(axis='columns')
-    return description, within_variance, between_variance
-
-def batchPerceptron(epochs:int, dataset:np.ndarray, seed:int):
+def LS_2_Classifier(X:np.ndarray, t:np.ndarray):
     """
     @purpose:
-        Perform the batch perceptron over a dataset to compute weights
-        All pre-processing (Class 2 x -1, etc) needs to occur before this call
+        compute the weights as a result of the least-squares classifier
+    @pre:
+        X must be augmented with a column of ones
+        t must be selected as -1 or 1
     @param:
-        itterations - maximum itterations the perceptron should run for
-        dataset - dataset that will generate the weights
+        X - input dataframe
+        t - labels
     @return:
-        weights - final weights computed from perceptron
-        k - # of itterations needed to converge
-        len(misclassifications) - # of misclassified features
+        weights - vector of weights computed from the LS-solution
     """
-    np.random.seed(seed) # set the seed
-
-    # Augment the dataset with ones column
-    X = np.c_[np.ones(dataset.shape[0]), dataset]
-
-    # take an initial guess of the weights based on the columns provided
-    weights = np.random.normal(loc=0,scale=1, size=(X.shape[1],1))
-    rho_k = 1 # set an initial learning rate
-    
-    for k in range(1,epochs+1):
-        missclassifications = []
-        for row in X:        
-            # compute the class of the row with the weight vector
-            classification = weights.T.dot(row)
-            # if the classification is negative, append to the missclassifications
-            if classification <= 0:
-                missclassifications.append(row) # append the data point that was misclassed
-        
-        # if there were no misclassifications in the entire dataset, complete
-        if len(missclassifications) == 0:
-            print(f'Batch Perceptron converged in {k} epochs')
-            return k, len(missclassifications), weights
-        # If the previous condition fails, we need to sum all of the misclassifications then adjust weight
-        sum_missclassifications = np.sum(missclassifications, axis=0).reshape(-1, 1)
-        weights += rho_k * sum_missclassifications
-    print(f'Batch Perceptron failed to converge in {epochs} epochs')
-    
-    return k, len(missclassifications), weights
-
-def leastSquaresClassifier(labels:np.ndarray, data:np.ndarray):
-    """
-    @purpose:
-        compute the weights based on least squares
-    @param:
-        labels - target vector mapping data to classes
-        data - input matrix of values appended or prepended with ones
-    @return:
-        weights- weights that map data to labels
-    """
-    # augment the data with a row of ones
-    X = np.c_[np.ones(data.shape[0]), data]
-    weights = np.linalg.pinv(X).dot(labels)
+    weights = np.linalg.pinv(X).dot(t)
     return weights
 
-def ComputeMisclassCount(weights:np.ndarray, data:np.ndarray, labels:np.ndarray):
+def BatchPerceptron(X:np.ndarray, epochs=1000):
     """
     @purpose:
-        compute the misclassifications from the least - squares algorithm
-    @param:
-        weights- weights computed from LS
-        data - X matrix of data
+        - try to compute the weights that would classify X correctly
+    @pre:
+        - X be a 2 class problem, with features in class 2 being scaled by -1
+        - X is to be augmented with a column of 1s
     @return:
-        number of points where data.dot(weights) returns 0 or negative values
+        weights- the weights that correctly all features of class X, if convergence
+        k - epoch that BP converged on
     """
-    predictions = data.dot(weights)
-    # Convert predictions to closest class
-    predictions = np.round(predictions)
-    # # Count misclassifications
-    # num_misclass = np.sum(binary_predictions)
-    # return num_misclass    
+    weights = np.random.normal(loc=0, scale=1.0, size=X.shape[1]) # initial guess
+    rho_k = 1 # initial learning rate
+    for k in range(1,epochs+1):
+        # compute the predictions
+        predictions = X.dot(weights)
+        # get the indeces of negative (misclassed) features
+        bad_classes = predictions<=0
+        # print(X[bad_classes].shape) # this should shrink over time
+        # if no misclassifications, convergence
+        if not np.any(predictions<=0):
+            print(f'Converged at {k} epochs')
+            return k, weights
+        weights += rho_k * np.sum(X[bad_classes], axis=0)
+        rho_k *= 0.8
+    print(f'Batch Perceptron Failed to Converge in {epochs} epochs')
+    return k, weights
 
-def plotStatistics(df:pd.DataFrame, class_mapping:dict):
-    """
-    @purpose:
-        Take an input data frame and plot some characteristics of its data
-        helper function to clean up the main driver function
-    """
-    # compute & plot correlation coefficients for all the features with each other and plot to a heat map
-    correlation_matrix = df.corr()
-    plt.figure(figsize=(10,8))    # create a 10 in x 8 in figure
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=.5)
-    plt.title('Correlation Heatmap')
-
-    # Plot scatter plots of each feature vs class mapping
-    plt.figure(figsize=(10,8))
-    plt.subplot(2,2,1)    # create a 2x2 subplot top left
-    plt.scatter(df['SepalL'], df['species'], marker='x', color='red')
-    plt.title('SepalL vs Class')
-    plt.xlabel('SepalL')
-    plt.ylabel('Class')
-    plt.xticks(np.arange(0,9,step=2))   # scale the graphs visually
-    plt.yticks(np.arange(1,len(class_mapping)+.5,step=.5))
-
-    plt.subplot(2,2,2)    # create a 2x2 subplot top right
-    plt.scatter(df['SepalW'], df['species'], marker='x', color='red')
-    plt.title('SepalW vs Class')
-    plt.xlabel('SepalW')
-    plt.ylabel('Class')
-    plt.xticks(np.arange(0,9,step=2))   # scale the graphs visually
-    plt.yticks(np.arange(1,len(class_mapping)+.5,step=.5))
-
-    plt.subplot(2,2, 3)    # create a 2x2 subplot bottom left
-    plt.scatter(df['PetalL'], df['species'], marker='x', color='red')
-    plt.title('PetalL vs Class')
-    plt.xlabel('PetalL')
-    plt.ylabel('Class')
-    plt.xticks(np.arange(0,9,step=2))   # scale the graphs visually
-    plt.yticks(np.arange(1,len(class_mapping)+.5,step=.5))
-
-    plt.subplot(2,2, 4)    # create a 2x2 subplot bottom left
-    plt.scatter(df['PetalW'], df['species'], marker='x', color='red')
-    plt.title('PetalW vs Class')
-    plt.xlabel('PetalW')
-    plt.ylabel('Class')
-    plt.xticks(np.arange(0,9,step=2))   # scale the graphs visually
-    plt.yticks(np.arange(1,len(class_mapping)+.5,step=.5))
-
-    plt.tight_layout()  # adjust for better spacing
-    plt.show()  # show both plots
-
-def main(excel:str, limit:int):
+def ComputeMisclass_LS_Multi(W:np.ndarray, X:np.ndarray, T:np.ndarray):
     """
     @purpose:
-        Driver function for control flow of the program
+        Report the misclassifications of LS_Multi
+    @pre:
+        W - weight matrix (l+1) x M
+        X - Data with bias N x (l+1)
+        T - one hot labels N x M
+    @return:
+        count - misclassified points count
+        accuracy - accuracy of the LS _ Multi classifier
     """
-    df = pd.read_excel(excel)
-    df.rename(columns={'meas_1': 'SepalL', 'meas_2': 'SepalW', 'meas_3': 'PetalL', 'meas_4': 'PetalW'}, inplace=True)
-    df_description, within_class_variance, between_class_variance = describeData(df)
-    print(f'Data Statistics:\n{df_description}\n')
-    print(f'Within-Class Variance:\n{within_class_variance}\n')
-    print(f'Between-Class Variance:\n{between_class_variance}\n')
-    
-    # Create a mapping for each class to a numeric label
-    class_mapping = {'setosa': 1, 'versicolor': 2, 'virginica': 3}    
-    # Add a new column 'class_label' with the numeric labels
-    df['species'] = df['species'].map(class_mapping)
+    prediction_matrix = X.dot(W)    # should be N x M predictions, where the Mth column with the max value in row N is the class of N
+    prediction_one_hot = np.eye(W.shape[1])[np.argmax(prediction_matrix, axis=1)]
+    # Find misclassified points
+    misclassified_indices = np.where(~np.all(T == prediction_one_hot, axis=0))[0]
+    # report the accuracy with the count
+    count = len(misclassified_indices)
+    accuracy = 1 - count / T.shape[0]
+    return count, accuracy
 
-    # Call the plotting helper function
-    plotStatistics(df=df, class_mapping=class_mapping)
+def ComputeMisclass_BP(w:np.ndarray, X:np.ndarray, t:np.ndarray):
+    """
+    @purpose:
+        compute the misclassifications of the BP regardless of convergence
+    @pre:
+        weights (l+1) x 1
+        X be the biased features N x (l+1)
+        t is the labels for classes : 1,2 - N x 1
+    """
+    prediction_matrix = X.dot(w)
+    classes = np.where(prediction_matrix > 0, 1, 2)   # if above threshold, give me a class 2, else class 1
+    misclasses = np.sum(classes!=t)
+    accuracy = 1 - misclasses / t.shape[0]   # get the accuracy from correct classes
+    return misclasses, accuracy
 
-    # Standardize the data - preprocessing for batch perceptron + Least Squares
-    features = df.drop(columns='species')
-    scaler = StandardScaler()
-    standardized_data = scaler.fit_transform(features)
-    df_standardized = pd.DataFrame(standardized_data, columns=features.columns)
-    df_standardized['species'] = df['species']         # Add the species column back
-    dataMatrix = df_standardized.to_numpy()            # Time to do matrix math
-    
-    # Compute the least-squares weights for features 3 & 4 & setosa vs others 2 - class
-    print(dataMatrix)
+def ComputeMisclass_LS(w:np.ndarray, X:np.ndarray, t:np.ndarray):
+    """
+    @purpose:
+        Compute the misclassifications and accuracy of decisions made from the LS method
+    @pre:
+        w - 1 x (l+1)
+        X - N x (l+1)
+        t - N x 1
+    """
+    # compute the prediction vector
+    predictions = X.dot(w)
+    predicted_labels = np.round(predictions, 0)
+    misclasses = np.sum(predicted_labels!=t)
+    accuracy = 1 - misclasses / t.shape[0]   # get the accuracy from correct classes
+    return misclasses, accuracy
 
+# Seed the program
+np.random.seed(0)
 
-if __name__ == '__main__':
-    # Create an argument parser
-    parser = argparse.ArgumentParser(
-        prog='Rodriguez_Silas_Project1.py',
-        description='Linear Classifiers on fisheriris dataset',
-        epilog='Dep: Numpy, seaborn, matplotlib, pandas')
+# Open the dataset
+df = read_excel('Proj1DataSet.xlsx').to_numpy()
 
-    # Add the CSV + max itterations arguments
-    parser.add_argument('-f','--excel',
-                         type=str,
-                         help='Relative path to excel file',
-                         default='Proj1DataSet.xlsx')
-    
-    parser.add_argument('-l', '--limit',
-                        type=int,
-                        metavar='MAX',
-                        help='Maximum itterations to use for gradient descent (default 1000)',
-                        default=1000)
-    
-    # Parse the command-line arguments
-    args = parser.parse_args()
+# Extract features and labels
+features = df[:, :-1]
+labels_text = df[:, -1]
 
-    # Call the main function with the provided Excel file
-    main(args.excel, args.limit)
+# Define class mapping
+class_mapping = {'setosa': 0, 'versicolor': 1, 'virginica': 2}
+
+# Convert text labels to numerical values
+labels = np.array([class_mapping[label] for label in labels_text])
+
+# Describe the data
+min_values = np.min(features, axis=0)
+max_values = np.max(features, axis=0)
+mean_values = np.mean(features, axis=0)
+variance_values = np.var(features, axis=0)
+
+# Print the results
+print("Minimum values:", min_values)
+print("Maximum values:", max_values)
+print("Mean values:", mean_values)
+print("Variance values:", variance_values)
+
+# Get each bin's frequency in the data
+P_js = np.bincount(labels) / labels.shape[0]
+clusters = np.unique(labels)
+
+# Compute the within-class variance
+Sw = []
+for k, cluster in enumerate(clusters):
+    # isolate the data of this cluster:
+    feature_cluster = features[labels==cluster]
+    # compute each column's variance
+    variance_values = np.var(feature_cluster, axis=0)
+    # multiply with the P_j of this corresponding class
+    variance_values *= P_js[k]
+    Sw.append(variance_values)
+Sw = np.sum(Sw, axis=0)
+print(f'Within-Class Variance: {Sw}')
+
+# Compute the between-class variance
+Sb = []
+for k, cluster in enumerate(clusters):
+    # isolate the data of this cluster:
+    feature_cluster = features[labels==cluster]
+    # compute each column's variance
+    variance_values = np.power(np.mean(feature_cluster, axis=0) - mean_values, 2)
+    # multiply with the P_j of this corresponding class
+    variance_values *= P_js[k]
+    Sb.append(variance_values)
+Sb = np.sum(Sb, axis=0)
+print(f'Between-Class Variance: {Sb}')
+
+# Compute the correlation matrix
+df[:, -1] = labels
+col_names = ['SepalL', 'SepalW', 'PetalL', 'PetalW', 'Species']
+df = DataFrame(df,columns=col_names)
+corr_matrix = df.corr()
+plt.figure(figsize=(10,8))    # create a 10 in x 8 in figure
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=.5)
+plt.title('Correlation Heatmap')
+
+# Plot each feature against the class label in a loop
+features_columns = df.columns[:-1]  # Exclude the last column (label)
+num_features = len(features_columns)
+
+plt.figure(figsize=(10, 8))
+
+for i, feature in enumerate(features_columns, start=1):
+    plt.subplot(2, 2, i)
+    plt.scatter(df[feature], df['Species'], marker='x', color='red')
+    plt.title(f'{feature} vs Species')
+    plt.xlabel(feature)
+    plt.ylabel('Species')
+    plt.xticks(np.arange(0,9,step=2))
+
+plt.tight_layout()
+plt.show()
+
+# Redefine class mapping
+class_mapping = {'setosa': 1, 'versicolor': 2, 'virginica': 3}
+labels +=1
+
+# Standardize the features
+scaler = StandardScaler()
+features_standardized = scaler.fit_transform(features)
+
+# Divide the standardized features based on their labels, augment a col of ones
+setosa = features_standardized[labels == class_mapping['setosa']]
+setosa = np.c_[np.ones(setosa.shape[0]), setosa]
+versi = features_standardized[labels == class_mapping['versicolor']]
+versi = np.c_[np.ones(versi.shape[0]), versi]
+virgin = features_standardized[labels == class_mapping['virginica']]
+virgin = np.c_[np.ones(virgin.shape[0]), virgin]
+
+# Section Break
+print()
+
+# Compute the weights for LS method on setosa vs others All Features
+print('Computing Boundaries for Setosa vs others All Features...')
+other = np.vstack((versi, virgin))
+F34_X = np.vstack((setosa, versi, virgin))
+F34_L = np.where(labels != class_mapping['setosa'], 2, labels)
+
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+misclasses, accuracy = ComputeMisclass_LS(w = weights_LS, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Least-Squares with accuracy {accuracy*100}%.')
+
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
+# Reprocess X for misclass computation
+F34_X[F34_L!=1, :] *= -1
+misclasses, accuracy = ComputeMisclass_BP(w = weights_BP, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Batch-Perceptron with accuracy {accuracy*100}%.')
+
+# Section break
+print()
+
+# Compute the weights for LS method on setosa vs others features 3 & 4
+print('Computing Boundaries for Setosa vs others Features 3 & 4 only...')
+other = np.vstack((versi, virgin))
+F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
+F34_L = np.where(labels != class_mapping['setosa'], 2, labels)
+
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+misclasses, accuracy = ComputeMisclass_LS(w = weights_LS, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Least-Squares with accuracy {accuracy*100}%.')
+
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
+# Reprocess X for misclass computation
+F34_X[F34_L!=1, :] *= -1
+misclasses, accuracy = ComputeMisclass_BP(w = weights_BP, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Batch-Perceptron with accuracy {accuracy*100}%.')
+
+# plot least squares vs scatter data
+xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
+yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
+yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
+
+# print(weights_BP)
+# print(weights_LS)
+
+plt.scatter(setosa[:, 3], setosa[:, 4], marker='x', color='red')
+plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
+plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
+plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
+plt.xlabel('Feature 3')
+plt.ylabel('Feature 4')
+plt.xlim(-2,2)
+plt.ylim(-2,2)
+plt.legend()
+plt.show()
+
+# Section Break
+print()
+
+# Compute the weights for LS method on virgi vs others All features
+print('Computing Boundaries for virginica vs others All Features...')
+other = np.vstack((setosa, versi))
+F34_X = np.vstack((setosa, versi, virgin))
+F34_L = np.where(labels != class_mapping['virginica'], 2, labels)
+F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class 2
+
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+misclasses, accuracy = ComputeMisclass_LS(w = weights_LS, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Least-Squares with accuracy {accuracy*100}%.')
+
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
+# Reprocess X for error computation
+F34_X[F34_L!=1, :] *= -1
+misclasses, accuracy = ComputeMisclass_BP(w = weights_BP, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from BP with accuracy {accuracy*100}%.')
+
+# Section Break
+print()
+
+# Compute the weights for LS method on virgi vs others features 3 & 4
+print('Computing Boundaries for virginica vs others Features 3 & 4 only...')
+other = np.vstack((setosa, versi))
+F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
+F34_L = np.where(labels != class_mapping['virginica'], 2, labels)
+F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class 2
+
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+misclasses, accuracy = ComputeMisclass_LS(w = weights_LS, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from Least-Squares with accuracy {accuracy*100}%.')
+
+# Preprocess X for batch perceptron
+F34_X[F34_L!=1, :] *= -1
+k, weights_BP = BatchPerceptron(X=F34_X)
+# Reprocess X for error computation
+F34_X[F34_L!=1, :] *= -1
+misclasses, accuracy = ComputeMisclass_BP(w = weights_BP, X=F34_X, t = F34_L)
+print(f'{misclasses} misclassifications from BP with accuracy {accuracy*100}%.')
+
+# plot least squares vs scatter data
+xline = np.linspace(F34_X[:,1].min(), F34_X[:,1].max())
+yline_LS = -(weights_LS[0] + weights_LS[1] * xline) / weights_LS[2]
+yline_BP = -(weights_BP[0] + weights_BP[1] * xline) / weights_BP[2]
+
+plt.scatter(virgin[:, 3], virgin[:, 4], marker='x', color='red')
+plt.scatter(other[:, 3], other[:, 4], marker='^', color='green')
+plt.plot(xline, yline_LS, color='black', label='Least-Squares d(x)')
+plt.plot(xline, yline_BP, color='blue', label=f'Batch-Perceptron d(x) - {k}')
+plt.xlabel('Feature 3')
+plt.ylabel('Feature 4')
+plt.xlim(-2,2)
+plt.ylim(-2,2)
+plt.legend()
+plt.show()
+
+# Section Break
+print()
+
+# Multiclass LS on features 3 & 4 only
+print('Computing Boundaries for Setosa vs Versi vs Virgi Features 3 & 4 only...')
+F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))  # collect our X matrix
+unique_labels = len(np.unique(labels))
+T_matrix = np.eye(unique_labels)[labels-1]
+
+# Each w vect within W corresponds to one class
+W_Matrix = np.linalg.pinv(F34_X).dot(T_matrix)
+# print(W_Matrix.shape, W_Matrix) # verify this guy is (l+1) x M : (3 x 3)
+
+misclasses, accuracy = ComputeMisclass_LS_Multi(W = W_Matrix, X=F34_X, T=T_matrix)
+print(f'{misclasses} misclassifications with accuracy {accuracy*100}%.')
+
+# Prepare plotting
+xline = np.linspace(F34_X[:, 1].min(), F34_X[:, 1].max())
+y1_line = -(W_Matrix[0, 0] + W_Matrix[1, 0] * xline) / W_Matrix[2, 0]
+y2_line = -(W_Matrix[0, 1] + W_Matrix[1, 1] * xline) / W_Matrix[2, 1]
+y3_line = -(W_Matrix[0, 2] + W_Matrix[1, 2] * xline) / W_Matrix[2, 2]
+
+d12 = y1_line - y2_line
+d13 = y1_line - y3_line
+d23 = y2_line - y3_line
+
+plt.scatter(setosa[:, 3], setosa[:, 4], marker='^', color='black', label=f'Class {class_mapping["setosa"]}')
+plt.scatter(versi[:, 3], versi[:, 4], marker='o', color='blue', label=f'Class {class_mapping["versicolor"]}')
+plt.scatter(virgin[:, 3], virgin[:, 4], marker='x', color='red', label=f'Class {class_mapping["virginica"]}')
+
+plt.plot(xline, d12, color='green', label='d12')
+plt.plot(xline, d13, color='purple', label='d13')
+plt.plot(xline, d23, color='orange', label='d23')
+plt.xlabel('Feature 3')
+plt.ylabel('Feature 4')
+plt.xlim(-2,2)
+plt.ylim(-2,2)
+plt.legend()
+plt.show()
