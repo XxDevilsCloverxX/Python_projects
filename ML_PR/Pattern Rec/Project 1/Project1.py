@@ -130,8 +130,6 @@ for i, feature in enumerate(features_columns, start=1):
 plt.tight_layout()
 plt.show()
 
-# print(features, labels)
-
 # Redefine class mapping
 class_mapping = {'setosa': 1, 'versicolor': 2, 'virginica': 3}
 labels +=1
@@ -151,10 +149,11 @@ virgin = np.c_[np.ones(virgin.shape[0]), virgin]
 # Compute the weights for LS method on setosa vs others features 3 & 4
 other = np.vstack((versi, virgin))
 F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
-F34_L = np.where(labels != class_mapping['setosa'], -1, labels)
-weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+F34_L = np.where(labels != class_mapping['setosa'], 2, labels)
+
 # Preprocess X for batch perceptron
 F34_X[F34_L!=1, :] *= -1
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
 k, weights_BP = BatchPerceptron(X=F34_X)
 
 # plot least squares vs scatter data
@@ -179,12 +178,11 @@ plt.show()
 # Compute the weights for LS method on virgi vs others features 3 & 4
 other = np.vstack((setosa, versi))
 F34_X = np.vstack((setosa[:, [0,3,4]], versi[:, [0,3,4]], virgin[:, [0,3,4]]))
-F34_L = np.where(labels != class_mapping['virginica'], -1, labels)
-F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class -1
-
-weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
+F34_L = np.where(labels != class_mapping['virginica'], 2, labels)
+F34_L[labels==class_mapping['virginica']] = 1    # set virgi to class 1, others to class 2
 # Preprocess X for batch perceptron
 F34_X[F34_L!=1, :] *= -1
+weights_LS = LS_2_Classifier(X=F34_X, t=F34_L)
 k, weights_BP = BatchPerceptron(X=F34_X)
 
 # plot least squares vs scatter data
