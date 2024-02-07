@@ -74,10 +74,33 @@ def npDescribe(features:np.ndarray, labels:np.ndarray, df:DataFrame):
     plt.show()
 
 def LS_classifier(X:np.ndarray, t:np.ndarray):
+    """
+    @purpose:
+        compute the weights as a result of the least-squares classifier
+    @pre:
+        X must be augmented with a column of ones
+        t must be selected as -1 or 1
+    @param:
+        X - input dataframe
+        t - labels
+    @return:
+        weights - vector of weights computed from the LS-solution
+    """
     weights = np.linalg.pinv(X).dot(t)
     return weights
 
 def LS_evaluator(Weights:np.ndarray, X:np.ndarray, t:np.ndarray):
+    """
+    @purpose:
+        Compute the misclassifications and accuracy of decisions made from the LS method
+    @pre:
+        w - 1 x (l+1)
+        X - N x (l+1)
+        t - N x 1
+    @return
+        misclassed - # of data points in X that were misclassed in the 2 class case
+        accuracy - accuracy of the least squares evaluator with this weight vector on X
+    """
     prediction_matrix = X.dot(Weights)
     prediction_matrix = np.round(prediction_matrix, 0)
     misclassed = np.sum(prediction_matrix!=t)
@@ -129,10 +152,31 @@ def BP_evaluator(w:np.ndarray, X:np.ndarray, t:np.ndarray):
     return misclasses, accuracy*100
 
 def LS_multi_classifier(X:np.ndarray, T:np.ndarray):
+    """
+    @purpose:
+        compute the W matrix for W mapping to T (minimizes least squares)
+    @pre:
+        X - Feature matrix - typically just the raw data with ones prepended
+        T - Target Matrix - one hot encoded to map each feature in X to a N x M matrix
+    @return:
+        W - (l+1) x M matrix where d1,d2...d_M decision functions lie along the columns
+            that when X dot W is computed, returns a classification using the max outcome along the cols
+    """
     W = np.linalg.pinv(X).dot(T)
     return W
 
 def LS_multi_evaluator(W:np.ndarray, X:np.ndarray, T:np.ndarray):
+    """
+    @purpose:
+        Report the misclassifications of LS_Multi
+    @pre:
+        W - weight matrix (l+1) x M
+        X - Data with bias N x (l+1)
+        T - one hot labels N x M
+    @return:
+        count - misclassified points count
+        accuracy - accuracy of the LS _ Multi classifier
+    """
     # Computes the values s.t. N x (l+1) dot (l+1) x M => N x M predictions. N data points classed by M cols
     prediction_matrix = X.dot(W)
     predicts_one_hot = np.eye(W.shape[1])[np.argmax(prediction_matrix, axis=1)]
