@@ -102,10 +102,10 @@ def LS_evaluator(Weights:np.ndarray, X:np.ndarray, t:np.ndarray):
         accuracy - accuracy of the least squares evaluator with this weight vector on X
     """
     prediction_matrix = X.dot(Weights)
-    prediction_matrix = np.round(prediction_matrix, 0)
-    misclassed = np.sum(prediction_matrix!=t)
-    accuracy = 1 - misclassed / t.shape[0]
-    return misclassed, accuracy*100
+    predictions = (prediction_matrix > 0.5).astype(int)
+    misclassified = np.sum(predictions != t)
+    accuracy = 1 - misclassified / t.shape[0]
+    return misclassified, accuracy * 100
 
 def BatchPerceptron(X:np.ndarray, epochs=1000):
     """
@@ -252,7 +252,7 @@ def main():
 
     # plot least squares vs scatter data
     xline = np.linspace(features_part2[:, 1].min(), features_part2[:, 1].max())
-    yline_LS = -(weights_LS2[0] + weights_LS2[1] * xline) / weights_LS2[2]
+    yline_LS = (0.5-(weights_LS2[0] + weights_LS2[1] * xline)) / weights_LS2[2]     # DO NOT FORGET THE THRESHOLD
     yline_BP = -(weights_BP2[0] + weights_BP2[1] * xline) / weights_BP2[2]
 
     # since l = 2 , plot the features
@@ -308,7 +308,7 @@ def main():
 
     # plot least squares vs scatter data
     xline = np.linspace(features_part4[:, 1].min(), features_part4[:, 1].max())
-    yline_LS = -(weights_LS4[0] + weights_LS4[1] * xline) / weights_LS4[2]
+    yline_LS = (0.5-(weights_LS4[0] + weights_LS4[1] * xline)) / weights_LS4[2]
     yline_BP = -(weights_BP4[0] + weights_BP4[1] * xline) / weights_BP4[2]
 
     # since l = 2 , plot the features
@@ -341,13 +341,10 @@ def main():
 
     # l = 2 , plot the data 
     xline = np.linspace(features_part5[:, 1].min(), features_part5[:, 1].max())
-    y1_line = -(W_matrix[0, 0] + W_matrix[1, 0] * xline) / W_matrix[2, 0]
-    y2_line = -(W_matrix[0, 1] + W_matrix[1, 1] * xline) / W_matrix[2, 1]
-    y3_line = -(W_matrix[0, 2] + W_matrix[1, 2] * xline) / W_matrix[2, 2]
 
-    d01 = y1_line - y2_line
-    d02 = y1_line - y3_line
-    d12 = y2_line - y3_line
+    d01 = -((W_matrix[0,0] - W_matrix[0,1]) / (W_matrix[2,0] - W_matrix[2,1]) + xline*(W_matrix[1,0] -W_matrix[1,1] ) / (W_matrix[2,0] - W_matrix[2,1]) )
+    d02 = -((W_matrix[0,0] - W_matrix[0,2]) / (W_matrix[2,0] - W_matrix[2,2]) + xline*(W_matrix[1,0] -W_matrix[1,2] ) / (W_matrix[2,0] - W_matrix[2,2]) )
+    d12 = -((W_matrix[0,1] - W_matrix[0,2]) / (W_matrix[2,1] - W_matrix[2,2]) + xline*(W_matrix[1,1] -W_matrix[1,2] ) / (W_matrix[2,1] - W_matrix[2,2]) )
 
     plt.scatter(features_part5[:,1], features_part5[:,2], cmap='rainbow_r', c=labels_part5, marker='^')
     plt.colorbar(label='Class labels')
