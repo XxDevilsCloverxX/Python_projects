@@ -1,8 +1,12 @@
+"""
+Engineer: Silas Rodriguez
+ECE 5363
+Pattern Recognition
+"""
 from pandas import read_excel, DataFrame
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
 
 def npDescribe(features:np.ndarray, labels:np.ndarray, df:DataFrame):
     # Describe the data
@@ -86,6 +90,17 @@ def LS_classifier(X:np.ndarray, t:np.ndarray):
     @return:
         weights - vector of weights computed from the LS-solution
     """
+
+    """
+    @purpose:
+        compute the W matrix for W mapping to T (minimizes least squares)
+    @pre:
+        X - Feature matrix - typically just the raw data with ones prepended
+        T - Target Matrix - one hot encoded to map each feature in X to a N x M matrix
+    @return:
+        W - (l+1) x M matrix where d1,d2...d_M decision functions lie along the columns
+            that when X dot W is computed, returns a classification using the max outcome along the cols
+    """
     weights = np.linalg.pinv(X).dot(t)
     return weights
 
@@ -151,20 +166,6 @@ def BP_evaluator(w:np.ndarray, X:np.ndarray, t:np.ndarray):
     accuracy = 1 - misclasses / t.shape[0]   # get the accuracy from correct classes
     return misclasses, accuracy*100
 
-def LS_multi_classifier(X:np.ndarray, T:np.ndarray):
-    """
-    @purpose:
-        compute the W matrix for W mapping to T (minimizes least squares)
-    @pre:
-        X - Feature matrix - typically just the raw data with ones prepended
-        T - Target Matrix - one hot encoded to map each feature in X to a N x M matrix
-    @return:
-        W - (l+1) x M matrix where d1,d2...d_M decision functions lie along the columns
-            that when X dot W is computed, returns a classification using the max outcome along the cols
-    """
-    W = np.linalg.pinv(X).dot(T)
-    return W
-
 def LS_multi_evaluator(W:np.ndarray, X:np.ndarray, T:np.ndarray):
     """
     @purpose:
@@ -202,13 +203,14 @@ def main():
 
     npDescribe(features=features, labels=labels, df=df)
 
-    # Standardize the data:
-    scaler = StandardScaler()
-    feat_std = scaler.fit_transform(features)
+    
 
+    # Reformat the data:
+    feat_std = features.astype('float64')
+    
     # Augment the features with a col of 1s
     feat_std = np.c_[np.ones(feat_std.shape[0]), feat_std]
-
+    
     ######################################################################
     # Compute the weights for LS method on setosa vs others All Features #
     print('\nCompute the weights for LS method on setosa vs others All Features\n')
@@ -236,7 +238,7 @@ def main():
     features_part2 = features_part2[:, [0,3,4]]
     labels_part2 = labels.copy()
     # Convert the labels to 2 - class problem
-    labels_part2 = np.where(labels_part1==0, 0, 1)
+    labels_part2 = np.where(labels_part2==0, 0, 1)
     # LS classifier weights output
     weights_LS2 = LS_classifier(X=features_part2, t=labels_part2)
     print(f'Least-Squares Weights: {weights_LS2.shape}, {weights_LS2}')
@@ -251,22 +253,22 @@ def main():
     print(f'{misclasses} miclassed vectors from Batch-Perceptron with {accuracy}% using all features & {k} epochs.')
 
     # plot least squares vs scatter data
-    xline = np.linspace(features_part2[:, 1].min(), features_part2[:, 1].max())
-    yline_LS = (0.5-(weights_LS2[0] + weights_LS2[1] * xline)) / weights_LS2[2]     # DO NOT FORGET THE THRESHOLD
-    yline_BP = -(weights_BP2[0] + weights_BP2[1] * xline) / weights_BP2[2]
+    yline_LS = (0.5-features_part2[:,:-1].dot(weights_LS2[:-1])) / weights_LS2[-1] # DO NOT FORGET THE THRESHOLD
+    yline_BP = -features_part2[:,:-1].dot(weights_BP2[:-1]) / weights_BP2[-1]
 
     # since l = 2 , plot the features
+    plt.figure(figsize=(10,8))
     plt.scatter(features_part2[:,1], features_part2[:,2], cmap='rainbow_r', c=labels_part2, marker='o')
     plt.colorbar(label='Class labels')
-    plt.plot(xline, yline_LS, color='green', label='Least-Squares d(x)')
-    plt.plot(xline, yline_BP, color='black', label=f'Batch-Perceptron d(x) - {k}')
+    plt.plot(features_part2[:,1], yline_LS, color='green', label='Least-Squares d(x)')
+    plt.plot(features_part2[:,1], yline_BP, color='black', label=f'Batch-Perceptron d(x) - {k}')
+    plt.title('Setosa vs Others - Features 3&4')
     plt.xlabel('Feature 3')
     plt.ylabel('Feature 4')
-    plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
+    plt.ylim(np.min(features_part2[:,-1])-1, np.max(features_part2[:,-1])) # limit Y but display all of X
     plt.legend()
-    plt.show()
-    ######################################################################
+    # plt.show()
+    # ######################################################################
     # Compute the weights for LS method on virgi vs others All Features  #
     print('\nCompute the weights for LS method on virgi vs others All Features\n')
     features_part3 = feat_std.copy()    # copy the data to not overwrite original
@@ -307,21 +309,21 @@ def main():
     print(f'{misclasses} miclassed vectors from Batch-Perceptron with {accuracy}% using all features & {k} epochs.')
 
     # plot least squares vs scatter data
-    xline = np.linspace(features_part4[:, 1].min(), features_part4[:, 1].max())
-    yline_LS = (0.5-(weights_LS4[0] + weights_LS4[1] * xline)) / weights_LS4[2]
-    yline_BP = -(weights_BP4[0] + weights_BP4[1] * xline) / weights_BP4[2]
+    yline_LS = (0.5-(features_part4[:,:-1].dot(weights_LS4[:-1]))) / weights_LS4[-1]
+    yline_BP = -(features_part4[:,:-1].dot(weights_BP4[:-1])) / weights_BP4[-1]
 
     # since l = 2 , plot the features
+    plt.figure(figsize=(10,8))
     plt.scatter(features_part4[:,1], features_part4[:,2], cmap='rainbow_r', c=labels_part4, marker='o')
     plt.colorbar(label='Class labels')
-    plt.plot(xline, yline_LS, color='green', label='Least-Squares d(x)')
-    plt.plot(xline, yline_BP, color='black', label=f'Batch-Perceptron d(x) - {k}')
+    plt.plot(features_part4[:,1], yline_LS, color='green', label='Least-Squares d(x)')
+    plt.plot(features_part4[:,1], yline_BP, color='black', label=f'Batch-Perceptron d(x) - {k}')
+    plt.title('Virgi Vs. Others - Features 3&4')
     plt.xlabel('Feature 3')
     plt.ylabel('Feature 4')
-    plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
+    plt.ylim(np.min(features_part4[:,-1])-1, np.max(features_part4[:-1])) # limit Y but display all of X    
     plt.legend()
-    plt.show()
+    # plt.show()
     ######################################################################
     # Multiclass LS on features 3 & 4 only
     print('Computing Boundaries for Setosa vs Versi vs Virgi Features 3 & 4 only...')
@@ -329,32 +331,41 @@ def main():
     features_part5 = feat_std.copy()    # copy the data to not overwrite original
     features_part5 = features_part5[:, [0,3,4]]
     # Design the T matrix
-    labels_part5 = labels.copy()
+    labels_part5 = labels.copy()[:]
     num_classes = len(np.unique(labels_part5))
     T_matrix = np.eye(num_classes)[labels_part5]    # one- hot encoding matrix
 
     # Design the W_matrix
-    W_matrix = LS_multi_classifier(X=features_part5, T=T_matrix)
+    W_matrix = LS_classifier(X=features_part5, t=T_matrix)
     print(W_matrix.shape, W_matrix) # l+1 x M -> 3x3 in this case
     misclasses, accuracy = LS_multi_evaluator(W=W_matrix, X=features_part5, T=T_matrix)
     print(f'{misclasses} misclassed points from Multi-Least-Squares with {accuracy}% using features 3 & 4')
 
     # l = 2 , plot the data 
-    xline = np.linspace(features_part5[:, 1].min(), features_part5[:, 1].max())
+    # d1 - d2 > 0, d1 - d3 > 0, d2 - d3 > 0 -> X = N x l+1
+    d0 = W_matrix[:,0]
+    d1 = W_matrix[:,1]
+    d2 = W_matrix[:,2]
+    # Extract the boundaries by taking differences of the columns = 0 (d1 - d2 > 0) 
+    d01 = (d0 - d1)
+    d02 = (d0 - d2)
+    d12 = (d1 - d2)
+    
+    boundary_01 = -features_part5[:,:-1].dot(d01[:-1]) / d01[-1]
+    boundary_02 = -features_part5[:,:-1].dot(d02[:-1]) / d02[-1]
+    boundary_12 = -features_part5[:,:-1].dot(d12[:-1]) / d12[-1]
 
-    d01 = -((W_matrix[0,0] - W_matrix[0,1]) / (W_matrix[2,0] - W_matrix[2,1]) + xline*(W_matrix[1,0] -W_matrix[1,1] ) / (W_matrix[2,0] - W_matrix[2,1]) )
-    d02 = -((W_matrix[0,0] - W_matrix[0,2]) / (W_matrix[2,0] - W_matrix[2,2]) + xline*(W_matrix[1,0] -W_matrix[1,2] ) / (W_matrix[2,0] - W_matrix[2,2]) )
-    d12 = -((W_matrix[0,1] - W_matrix[0,2]) / (W_matrix[2,1] - W_matrix[2,2]) + xline*(W_matrix[1,1] -W_matrix[1,2] ) / (W_matrix[2,1] - W_matrix[2,2]) )
-
-    plt.scatter(features_part5[:,1], features_part5[:,2], cmap='rainbow_r', c=labels_part5, marker='^')
+    # plot since l = 2
+    plt.figure(figsize=(10,8))
+    plt.scatter(features_part5[:,1], features_part5[:,2], cmap='rainbow_r', c=labels_part5, marker='o')
     plt.colorbar(label='Class labels')
-    plt.plot(xline, d01, color='green', label='d01')
-    plt.plot(xline, d02, color='purple', label='d02')
-    plt.plot(xline, d12, color='orange', label='d12')
+    plt.plot(features_part5[:,1], boundary_01, color='green', label='Class 0 Vs. Class 1')
+    plt.plot(features_part5[:,1], boundary_02, color='purple', label='Class 0 Vs. Class 2')
+    plt.plot(features_part5[:,1], boundary_12, color='orange', label='Class 1 Vs. Class 2')
+    plt.title('Setosa Vs. Virsicolor Vs. Virginica - Multiclass LS')
     plt.xlabel('Feature 3')
     plt.ylabel('Feature 4')
-    plt.xlim(-2,2)
-    plt.ylim(-2,2)
+    plt.ylim(np.min(features_part5[:,-1])-1, np.max(features_part5[:-1])) # limit Y but display all of X
     plt.legend()
     plt.show()
 
