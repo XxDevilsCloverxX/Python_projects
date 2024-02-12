@@ -182,7 +182,7 @@ def LS_multi_evaluator(W:np.ndarray, X:np.ndarray, T:np.ndarray):
     prediction_matrix = X.dot(W)
     predicts_one_hot = np.eye(W.shape[1])[np.argmax(prediction_matrix, axis=1)]
     # Find the misclassed points
-    misclassed_data = np.where(~np.all(T == predicts_one_hot, axis=0))[0]
+    misclassed_data = np.where(~np.all(T == predicts_one_hot, axis=1))[0]
     # report the accuracy and count
     count = len(misclassed_data)
     accuracy = 1- count / T.shape[0]
