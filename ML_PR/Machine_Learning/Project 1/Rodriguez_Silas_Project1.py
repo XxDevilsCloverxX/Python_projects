@@ -24,6 +24,9 @@ def closed_form(X, t):
     weights = np.linalg.pinv(X).dot(t)
     return weights
 
+def costFunction(y:np.ndarray, t:np.ndarray):
+    return np.sum(np.square(y-t))
+
 def gradientDescent(X: np.ndarray, t: np.ndarray,
                      iterations: int, tolerance=1e-3):
     """
@@ -38,9 +41,12 @@ def gradientDescent(X: np.ndarray, t: np.ndarray,
     np.random.seed(8)   # for consistency
     wk = np.random.randn(n, 1)  # weight vector initial guess
     rho_k = 1
+    costs = []
     for k in range(iterations):
         # compute predictions
         predictions = X.dot(wk)
+        cost = costFunction(predictions, t)
+        costs.append(cost)
         gradient = 2/m * X.T.dot(predictions - t)
         wk -= rho_k * gradient
         # degrade rho_k
@@ -50,6 +56,12 @@ def gradientDescent(X: np.ndarray, t: np.ndarray,
         if np.linalg.norm(gradient) <= tolerance:
             break
     print(f"Converged in {k+1} itterations")
+    plt.figure(figsize=(10,8))
+    plt.title('Cost Function (y-t)^2')
+    plt.plot(range(k+1), costs, linewidth=3, c='black', label='Least Squares Cost J(w) = (Xw-t)^2')
+    plt.xlabel('Iteration')
+    plt.ylabel('Cost')
+    plt.show()
     return wk
 
 def main(csv:str, limit:int):
@@ -79,6 +91,8 @@ def main(csv:str, limit:int):
     print(f'Gradient-D soln: {w_grad}')
 
     print(f'Difference in soln: {w_grad - w_closed}')
+
+    print(X_b)
 
     # Plot the data
     plt.figure(figsize=(12, 5))
