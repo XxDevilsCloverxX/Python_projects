@@ -45,34 +45,34 @@ def linearRegression(phi: np.ndarray, t: np.ndarray):
 def main():
     np.random.seed(52)
     # Generate the training set
-    X_train, t_train = generateVectors(N=100)
+    X_train, t_train = generateVectors(N=10)
 
     # Generate a degree set
-    # degrees = np.arange(10)
+    degrees = np.arange(10)
 
-    # for degree in degrees:
-    #     phi_train = generateBasisFunction(degree=degree, X=X_train)
-    #     weights_k = linearRegression(phi=phi_train, t=t_train)
+    for degree in degrees:
+        phi_train = generateBasisFunction(degree=degree, X=X_train)
+        weights_k = linearRegression(phi=phi_train, t=t_train)
 
-    #     # Create a densely sampled X for plotting the polynomial curve
-    #     X_plot = np.linspace(X_train.min(), X_train.max(), 1000).reshape(-1, 1)
-    #     phi_plot = generateBasisFunction(degree=degree, X=X_plot)
+        # Create a densely sampled X for plotting the polynomial curve
+        X_plot = np.linspace(X_train.min(), X_train.max(), 1000).reshape(-1, 1)
+        phi_plot = generateBasisFunction(degree=degree, X=X_plot)
 
-    #     predictions = phi_plot.dot(weights_k)
+        predictions = phi_plot.dot(weights_k)
 
-    #     plt.figure(figsize=(10, 8))
-    #     plt.title(f'Fitting {degree} degree polynomial to data')
-    #     plt.scatter(X_train, t_train, label='Training Data')
-    #     plt.plot(X_plot, predictions, label=f'{degree} degree Polynomial Fit', c='red')
-    #     plt.legend()
-    #     plt.show()
+        plt.figure(figsize=(10, 8))
+        plt.title(f'Fitting {degree} degree polynomial to data')
+        plt.scatter(X_train, t_train, label='Training Data')
+        plt.plot(X_plot, predictions, label=f'{degree} degree Polynomial Fit', c='red')
+        plt.legend()
+        plt.show()
 
 
     # Generate the new training set
     X_train, t_train = generateVectors(N=100, duplicates=50)
 
     # Generate a variance for the Gaussian radial basis functions
-    var = 0.1
+    var = 1
 
     # Calculate unique X values and corresponding means for radial basis functions
     unique_X, unique_indices = np.unique(X_train, return_inverse=True)
@@ -92,11 +92,11 @@ def main():
 
     # Plot the results
     plt.figure(figsize=(10, 8))
-    plt.title(f'Fitting Gaussian Radial Basis Function to data')
+    plt.title(f'Fitting Gaussian Radial Basis Function to data and {X_train.shape[0] - centers.shape[0]} conflicting X-t pairs')
     plt.scatter(X_train, t_train, label='Training Data', c='black')
     plt.plot(X_plot, predictions, label='Gaussian Radial Basis Function Fit', c='red')
     plt.scatter(unique_X, centers, marker='x', color='red', label='Centers')
-    plt.ylim(t_train.min()//2, t_train.max()*2)
+    plt.ylim(t_train.min(), t_train.max())
     plt.legend()
     plt.show()
 
