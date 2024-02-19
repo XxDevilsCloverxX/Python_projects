@@ -64,7 +64,7 @@ def main():
     plt.show()
 
     # prepend some ones to the dataset
-    A = np.c_[np.ones(X.shape[0]), X]
+    A = np.c_[X, np.ones(X.shape[0])]
     # Class 1 gets scaled by -1
     A[t.flatten() == 0] *= -1 
     # generate b
@@ -80,10 +80,10 @@ def main():
     A_cvxopt = matrix(A, tc='d')
     b_cvxopt = matrix(b, tc='d')
 
-    # print(A_cvxopt)
-    # print(b_cvxopt)
-    # print(H_cvxopt)
-    # print(f_cvxopt)
+    print(A_cvxopt)
+    print(b_cvxopt)
+    print(H_cvxopt)
+    print(f_cvxopt)
 
     # Solve the quadratic programming problem
     sol = solvers.qp(P=H_cvxopt, q=f_cvxopt, G=A_cvxopt, h=b_cvxopt)
@@ -92,8 +92,8 @@ def main():
     weights = np.array(sol['x'])
     lambdas = np.array(sol['z'])
 
-    print("Optimal solution:")
-    print("Weights:", weights)
+    print("Optimal solution w:")
+    print(weights)
     # print("Lambdas:", lambdas)
 
     # Identify support vectors
@@ -101,11 +101,11 @@ def main():
 
     # plot the decision boundary and margins
     x_line = np.linspace(X[:, 0].min(), X[:, 0].max(), 100) # create a 100 evenly spaced points over x1
-    y_line = -(x_line * weights[1] + weights[0]) / weights[-1]
-    d = 1 / np.linalg.norm(weights[1:])    # perpendicular distance from y_line to 1 decision boundary, no offset in this calc
+    y_line = -(x_line * weights[0] + weights[-1]) / weights[1]
+    d = 1 / np.linalg.norm(weights[:-1])    # perpendicular distance from y_line to 1 decision boundary, no offset in this calc
     
     # applying trig, we can get the other two margins through the SV
-    slope = weights[1] / weights[-1]          # getting the slope of the decision boundary in terms of x2
+    slope = weights[0] / weights[1]          # getting the slope of the decision boundary in terms of x2
     vert_offset = np.sqrt(1 + slope**2) * d   # proof here: https://www.geeksforgeeks.org/distance-between-two-lines/ x2 =y x1 =x for slope
     margin1 = y_line + vert_offset
     margin2 = y_line - vert_offset
@@ -133,7 +133,7 @@ def main():
     plt.show()
 
     # Test classifications:
-    X = np.c_[np.ones(X.shape[0]), X]
+    X = np.c_[X, np.ones(X.shape[0])]
     print(X.shape, weights.shape, t.shape)
     misclasses, accuracy = SVM_Evaluator(weights=weights, X=X, t=t)
     print(f'{misclasses} misclasses with {accuracy}% accuracy!')
