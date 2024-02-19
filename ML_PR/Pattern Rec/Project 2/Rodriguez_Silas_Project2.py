@@ -62,8 +62,9 @@ def main():
     plt.ylabel('x2')
     plt.colorbar(label='Classes')
     plt.show()
-
-    # prepend some ones to the dataset
+    #########################################################################
+    # Primal form solution
+    # append some ones to the dataset
     A = np.c_[X, np.ones(X.shape[0])]
     # Class 1 gets scaled by -1
     A[t.flatten() == 0] *= -1 
@@ -112,7 +113,7 @@ def main():
     print(f'Margin width: 2/||w|| = {2 * d}')
 
     plt.figure(figsize=(8,6))
-    plt.title('Data with Decision Boundary + Margins')
+    plt.title('Data with d(x) + Margins - Primal')
     plt.scatter(support_vectors[:, 0], support_vectors[:, 1], facecolors='none', edgecolors='k', s=150, label='Support Vectors')    # highlight SVs
     plt.scatter(X[:,0], X[:,1], c=t, cmap='coolwarm')
     plt.plot(x_line, y_line, c='black', label='d(x) = 0')
@@ -137,6 +138,44 @@ def main():
     print(X.shape, weights.shape, t.shape)
     misclasses, accuracy = SVM_Evaluator(weights=weights, X=X, t=t)
     print(f'{misclasses} misclasses with {accuracy}% accuracy!')
+
+    #################################################################################################
+    # Dual Form solution for the dataset
+    dual_X = np.c_[X, np.ones(X.shape[0])]
+    # Generate q'
+    q = -np.ones(dual_X.shape[0]).reshape(-1,1)
+    # Generate y: -1 for class 1 and 1 for class 0
+    y = np.where(t==0, 1, -1)
+    # Generate the kernel of x: linear - X dot X^T
+    K = dual_X.dot(dual_X.T)
+    # Generate P: yy^T(K)
+    P = y.dot(y.T) @ K
+    # Generate A: Ax = 0 -- lambda (y) = 0 - (1xN) * (Nx1)
+    A = y.T
+    # Generate b : 0
+    b = 0
+    # Generate G: Gx <= 0 -lambda <=0 : -I
+    G = -np.eye(y.shape[0])
+    # Generate h
+    h = np.zeros(G.shape[0]).reshape(-1,1)
+
+    # convert all the objects to matrix
+    P_cvxopt = matrix(P, tc='d')
+    q_cvxopt = matrix(q, tc='d')
+    G_cvxopt = matrix(G, tc='d')
+    h_cvxopt = matrix(h, tc='d')
+    A_cvxopt = matrix(A, tc='d')
+    b_cvxopt = matrix(b, tc='d')
+
+    # Solve the quadratic programming problem
+    sol = solvers.qp(P=P_cvxopt, q=q_cvxopt, G=G_cvxopt, h=h_cvxopt, A=A_cvxopt, b=b_cvxopt)
+
+    # Extract the optimal solution
+    # lambdas = np.array(sol['x'])
+
+    # Identify support vectors
+    # support_vectors = dual_X[lambdas.flatten() > 1e-6]
+
 
 if __name__ == '__main__':
     main()
