@@ -6,6 +6,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from math import ceil
 
 def kernel_RBF(X: np.ndarray, k:int=1, s:float=0.1):
     """
@@ -137,42 +138,57 @@ def main(L:int = 100):
     # Seed the program for reproducibility - Experimental
     np.random.seed(52)
     
-    L = 100
-    Dataset_weights = []    # should be L x num lambdas x W (Num rbfs x 1)
-    for dataset in range(L):
-
-        # generate dataset and matching targets
-        X, targets = generate_Dataset(N=25)
-        
-        # generate Phi for our dataset: Maps X (Nx1) -> Phi (N x K+1)
-        phi = kernel_RBF(X=X, k=5)
-
-        # create permissible values for lambda
-        lambdas = np.linspace(start=-2.5, stop=1.75, num=10)  # get a 100 evenly spaced values of lambda between -2.5 & 1.75
-        lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
-
-        # # Perform k-fold cross-validation - hyper param lambda
-        # best_lambda = k_fold_cross_validation(X=X, targets=targets, k=5, lambdas=lambdas)
-        # print("Best Lambda:", best_lambda)
-
-        computed_weights = []
-        for alpha in lambdas:
-            # compute the weights with the regularization term
-            weights_k = fit_curve(Phi=phi, t=targets, alpha=alpha)
-            computed_weights.append(weights_k)
-
-        # add all the computed weights to this dataset's weights
-        Dataset_weights.append(computed_weights)
-
-    Dataset_weights = np.array(Dataset_weights)
+    # generate dataset and matching targets
+    X, targets = generate_Dataset(N=25)
     
-    # compute the mean over all the data sets, keeping the lambdas separate
-    fbar_x = np.mean(Dataset_weights, axis=0)
-    print(f'f_bar weights: {fbar_x.shape}: (lambdas x (rbfs + 1) x 1)')
-    # plt.figure(figsize=(8,6))
-    # plt.title('Various Measures of Estimate of Model')
-    # plt.xlabel('ln λ')
-    # plt.show()
+    # generate Phi for our dataset: Maps X (Nx1) -> Phi (N x K+1)
+    phi = kernel_RBF(X=X, k=5)
+
+    # create permissible values for lambda
+    lambdas = np.linspace(start=-2.5, stop=1.75, num=10)  # get a 100 evenly spaced values of lambda between -2.5 & 1.75
+    lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
+
+    # # Perform k-fold cross-validation - hyper param lambda
+    # best_lambda = k_fold_cross_validation(X=X, targets=targets, k=5, lambdas=lambdas)
+    # print("Best Lambda:", best_lambda)
+
+    computed_weights = []
+    for alpha in lambdas:
+        # compute the weights with the regularization term
+        weights_k = fit_curve(Phi=phi, t=targets, alpha=alpha)
+        computed_weights.append(weights_k)
+
+    # Plot fits for different lambdas
+    fig_row, fig_col = 1, 2
+    num_figs = ceil(len(lambdas) / (fig_col * fig_row))
+
+    # Generate Phi for the test set
+    X_test, targ_test = generate_Dataset(N=1000)
+    Phi_test = kernel_RBF(X=X_test, k=5)
+    test_pts = np.linspace(X.min(), X.max(), num=1000).reshape(-1,1)
+    test_rbf = kernel_RBF(test_pts, k=5)
+
+    for i in range(num_figs):
+        # create a figure
+        plt.figure(figsize=(8,6))
+        # get the weights being used in this iteration
+        start = i*fig_row*fig_col
+        end = (start+fig_col*fig_row)
+        plotting_weights = computed_weights[start:end]
+        for fig_num, plot_weight in enumerate(plotting_weights):    
+            # Calculate the predicted values using the computed weights
+            predictions = test_rbf.dot(plot_weight)
+            # identify which subplot this belongs to:
+            plt.subplot(fig_row,fig_col,fig_num+1)
+            plt.title(f'N= {1000}, Weights[{start+fig_num}], lambda = {lambdas[start+fig_num]:.4f}')
+            # Plot the fit curve along with the test data
+            plt.scatter(X_test, targ_test, label="Test Data", color="black")
+            plt.plot(test_pts, predictions, color="red", label=f'Cost: {compute_cost(predictions=predictions, targets=targ_test):.3f}')
+            plt.tight_layout()
+            plt.legend()
+        # show the subplots
+        plt.show()
+
 
 if __name__ == '__main__':
     main(L=100)
