@@ -3,7 +3,6 @@
 @Class: ECE 5370 - Machine Learning
 @Date: 2/16/2024
 """
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -17,14 +16,14 @@ def kernel_RBF(X: np.ndarray, k:int=1, s:float=0.1):
     - k: number of RBFs to fit to the data - Hyperparameter
     Returns:
     - phi: Radial basis function values
-    """
-    # get a singular mean over all the input data: - Expected value of X
+    """    
+    # get the global mean
     mean = np.mean(X)
-    
-    # Calculate the step size between RBF centers based on the standard deviation
+
+    # Calculate the step size for symmetrically placing the Gaussians
     step_size = s * np.sqrt(2 * np.log(2))  # Full Width Half Max - property of Normal distributions
 
-    # Generate RBF centers around the 'population' mean - assuming what we know about the data is that low variance, we can expect means around this mean
+    # Set Gaussians around the data using means around the global mean
     centers = np.linspace(mean - (k-1) * step_size, mean + (k-1) * step_size, num=k)
 
     # calculate all the exponents - should return N x K exponenets for the data
@@ -52,66 +51,6 @@ def fit_curve(Phi:np.ndarray, t:np.ndarray, alpha:float=0):
     weights = np.linalg.inv(lin_kern + alpha * reg_mat).dot(Phi.T).dot(t)
     return weights
 
-def k_fold_cross_validation(X:np.ndarray, targets:np.ndarray, lambdas:np.ndarray, k:int=5):
-    """
-    @purpose:
-        Perform k-fold cross-validation to estimate the optimal value for the regularization parameter (lambda).
-
-    @parameters:
-        - X (numpy.ndarray): Feature matrix.
-        - targets (numpy.ndarray): Target vector.
-        - k (int): Number of folds for cross-validation.
-        - lambdas (numpy.ndarray): Array of regularization parameter values to be tested.
-
-    @returns:
-        - best_lambda (float): The optimal regularization parameter that minimizes the average error across folds.
-    """
-    # Calculate number of samples
-    N = X.shape[0]
-
-    # Shuffle indices
-    indices = np.random.permutation(N)
-
-    # Use shuffled indices to reorder data
-    X_shuffled = X[indices]
-    targets_shuffled = targets[indices]
-
-    # Split shuffled data into k folds
-    fold_size = N // k
-    folds_X = [X_shuffled[i*fold_size:(i+1)*fold_size, :] for i in range(k)]
-    folds_targets = [targets_shuffled[i*fold_size:(i+1)*fold_size] for i in range(k)]
-
-    # Perform k-fold cross-validation
-    errors = []
-    for alpha in lambdas:
-        fold_errors = []
-        for i in range(k):
-            # Use the i-th fold for testing, others for training
-            X_test, targets_test = folds_X[i], folds_targets[i]
-            X_train = np.concatenate([folds_X[j] for j in range(k) if j != i], axis=0)
-            targets_train = np.concatenate([folds_targets[j] for j in range(k) if j != i], axis=0)
-
-            # Generate Phi for training set
-            phi_train = kernel_RBF(X_train, k=5)
-
-            # Fit the curve on the training set
-            weights = fit_curve(Phi=phi_train, t=targets_train, alpha=alpha)
-
-            # Generate Phi for the test set
-            phi_test = kernel_RBF(X_test, k=5)
-
-            # Calculate the error on the test set
-            error = np.linalg.norm(phi_test.dot(weights) - targets_test)**2 / len(targets_test)
-            fold_errors.append(error)
-
-        # Average the errors across folds for the current lambda
-        errors.append(np.mean(fold_errors))
-
-    # Find the lambda that minimizes the average error
-    best_lambda = lambdas[np.argmin(errors)]
-
-    return best_lambda
-
 def generate_Dataset(N:int, std=0.3):
     """
     @purpose:
@@ -137,23 +76,22 @@ def main(L:int = 100):
     # Seed the program for reproducibility - Experimental
     np.random.seed(52)
     
+    # Setup loop variables + hyperparams
     L = 100
-    Dataset_weights = []    # should be L x num lambdas x W (Num rbfs x 1)
-    for dataset in range(L):
+    num_rbfs = 5    # increasing this puts more equi-distant means around the true mean - leads to overfitting
+    Datasets = {}    # will collect information about each dataset, (X, t)
+    weights_dataset = []    # this will hold onto the weights for each dataset (L x lambdas x rbfs + 1 x 1)
 
+    # create permissible values for lambda
+    lambdas = np.linspace(start=-2.5, stop=1.75, num=10)  # get a num evenly spaced values of lambda between -2.5 & 1.75
+    lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
+
+    for set in range(L):
         # generate dataset and matching targets
         X, targets = generate_Dataset(N=25)
-        
+
         # generate Phi for our dataset: Maps X (Nx1) -> Phi (N x K+1)
-        phi = kernel_RBF(X=X, k=5)
-
-        # create permissible values for lambda
-        lambdas = np.linspace(start=-2.5, stop=1.75, num=10)  # get a 100 evenly spaced values of lambda between -2.5 & 1.75
-        lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
-
-        # # Perform k-fold cross-validation - hyper param lambda
-        # best_lambda = k_fold_cross_validation(X=X, targets=targets, k=5, lambdas=lambdas)
-        # print("Best Lambda:", best_lambda)
+        phi = kernel_RBF(X=X, k=num_rbfs)
 
         computed_weights = []
         for alpha in lambdas:
@@ -162,17 +100,21 @@ def main(L:int = 100):
             computed_weights.append(weights_k)
 
         # add all the computed weights to this dataset's weights
-        Dataset_weights.append(computed_weights)
+        Datasets.update({set: (X, targets)})
+        weights_dataset.append(computed_weights)
 
-    Dataset_weights = np.array(Dataset_weights)
+    # convert the gathered weights to a np array
+    weights_dataset = np.array(weights_dataset)
     
-    # compute the mean over all the data sets, keeping the lambdas separate
-    fbar_x = np.mean(Dataset_weights, axis=0)
-    print(f'f_bar weights: {fbar_x.shape}: (lambdas x (rbfs + 1) x 1)')
-    # plt.figure(figsize=(8,6))
-    # plt.title('Various Measures of Estimate of Model')
-    # plt.xlabel('ln λ')
-    # plt.show()
+    # get the average weights across the 100 datasets axis = 0 means over L
+    avg_weights = np.mean(weights_dataset, axis=0)  # (lambdas x rbfs + 1 x 1)
+
+    # for each set of weights, compute the bias by applying the weights to the points, and subtracting my generated points
+    for key, dataset in Datasets.items():
+        X, t = dataset
+        for weights in avg_weights:
+            # apply the weights to the all the dataset
+            pass
 
 if __name__ == '__main__':
     main(L=100)

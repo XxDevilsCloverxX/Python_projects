@@ -186,8 +186,8 @@ def main(L:int = 100):
             plt.plot(test_pts, predictions, color="red", label=f'Cost: {compute_cost(predictions=predictions, targets=targ_test):.3f}')
             plt.tight_layout()
             plt.legend()
-        # show the subplots
-        plt.show()
+    # show the subplots
+    plt.show()
 
 
 if __name__ == '__main__':
