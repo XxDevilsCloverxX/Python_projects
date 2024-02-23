@@ -6,6 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+#########################################################################################################################################
 def kernel_RBF(X: np.ndarray, k:int=1, s:float=0.1):
     """
     Purpose:
@@ -70,16 +71,17 @@ def generate_Dataset(N:int, std=0.3):
     return X, t
 
 def compute_cost(predictions:np.ndarray, targets:np.ndarray):
-    return np.linalg.norm(predictions - targets) ** 2
+    return (np.linalg.norm(predictions - targets) ** 2) / predictions.shape[0]
 
+#########################################################################################################################################
 def main(L:int = 100):
     # Seed the program for reproducibility - Experimental
     np.random.seed(52)
     
     # Setup loop variables + hyperparams
-    L = 100
-    num_rbfs = 5    # increasing this puts more equi-distant means around the true mean - leads to overfitting
-    Datasets = {}    # will collect information about each dataset, (X, t)
+    num_rbfs = 10    # increasing this puts more equi-distant means around the true mean - leads to overfitting regime
+    num_pts = 25
+    Datasets = {}    # will collect information about each dataset, (X, t, phi)
     weights_dataset = []    # this will hold onto the weights for each dataset (L x lambdas x rbfs + 1 x 1)
 
     # create permissible values for lambda
@@ -88,7 +90,7 @@ def main(L:int = 100):
 
     for set in range(L):
         # generate dataset and matching targets
-        X, targets = generate_Dataset(N=25)
+        X, targets = generate_Dataset(N=num_pts)
 
         # generate Phi for our dataset: Maps X (Nx1) -> Phi (N x K+1)
         phi = kernel_RBF(X=X, k=num_rbfs)
@@ -100,21 +102,77 @@ def main(L:int = 100):
             computed_weights.append(weights_k)
 
         # add all the computed weights to this dataset's weights
-        Datasets.update({set: (X, targets)})
+        Datasets.update({set: (X, targets, phi)})
         weights_dataset.append(computed_weights)
 
+#########################################################################################################################################
     # convert the gathered weights to a np array
     weights_dataset = np.array(weights_dataset)
     
+    # generate a test dataset & matching sinusoid
+    x_test, t_test = generate_Dataset(N=1000)
+    phi_test = kernel_RBF(X=x_test, k=num_rbfs)
+
     # get the average weights across the 100 datasets axis = 0 means over L
-    avg_weights = np.mean(weights_dataset, axis=0)  # (lambdas x rbfs + 1 x 1)
+    f_bars = np.mean(weights_dataset, axis=0)  # (lambdas x rbfs + 1 x 1)
 
-    # for each set of weights, compute the bias by applying the weights to the points, and subtracting my generated points
+    # generate the sinusoid model and PhiX
+    sin_linspace_x = np.linspace(X.min(), X.max(), num=num_pts).reshape(-1, 1)
+    sin_linspace_y = np.sin(2*np.pi*sin_linspace_x)
+    phi_linspace_x = kernel_RBF(X=sin_linspace_x, k=num_rbfs)
+
+    # for each set of weights, compute the bias & test error
+    avg_bias_points = []
+    test_errors = []
+    for model_estimate in f_bars:
+        # Use the model_estimate for this lambda
+        predictions = phi_linspace_x @ model_estimate
+        test_predictions = phi_test @ model_estimate
+        # compute the cost and bias for this lambda
+        cost = compute_cost(predictions=test_predictions, targets=t_test)
+        bias = (predictions - sin_linspace_y)**2  ## compute the bias for the weights with this lambda value
+        # average the bias for this lambda
+        avg_bias = np.mean(bias)                    ## average the bias and append to the computed biases
+        avg_bias_points.append(avg_bias)
+        test_errors.append(cost)        
+
+    variances = []  # should become a L x lambdas matrix
     for key, dataset in Datasets.items():
-        X, t = dataset
-        for weights in avg_weights:
-            # apply the weights to the all the dataset
-            pass
+        # extract the current dataset
+        X, t , phi = dataset
+        # extract the weights computed for this dataset
+        weights_current = weights_dataset[key]
 
+        variances_per_lambda = []   # should become a len(lambdas) vector at the end of each iterattion
+        for i, weights_l in enumerate(weights_current):
+            # get the current average model
+            avg_model = f_bars[i]
+            # compute the predictions for fbar
+            predictions_fbar = phi @ avg_model
+            # compute the predictions for the dataset's weights
+            predictions_l = phi @ weights_l
+            # subtract these predictions, square them
+            var = (predictions_l - predictions_fbar)**2
+            # get the average for this var
+            var = np.mean(var)
+            variances_per_lambda.append(var)    # add this variance to the variances per lambda
+        
+        variances_per_lambda = np.array(variances_per_lambda)
+        variances.append(variances_per_lambda)
+
+    variances = np.array(variances)
+    avg_variances = np.mean(variances, axis=0)
+
+    # plot the statistics obtained
+    plt.plot(np.log(lambdas), avg_bias_points, c='blue', label='(Bias)²')
+    plt.plot(np.log(lambdas), test_errors, c='black', label='Test error')
+    plt.plot(np.log(lambdas), avg_variances, c='red', label='Variance')
+    plt.plot(np.log(lambdas), avg_variances+avg_bias_points, c='purple', label='(Bias)²+Variance')
+    plt.xlabel('ln λ')
+    plt.xlim(-3,3)
+    plt.legend()
+    plt.show()
+
+#########################################################################################################################################
 if __name__ == '__main__':
     main(L=100)
