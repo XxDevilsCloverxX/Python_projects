@@ -110,8 +110,9 @@ def main():
     S = (lambdas > 1e-4).flatten()
 
     # Computing b and append to weights
-    b = y[S] - np.dot(dual_X[S], weights)
-    weights = np.vstack((weights, b.min()))
+    # b = y[S] - np.dot(dual_X[S], weights)
+    b = -((dual_X[S] @ weights).min() + (dual_X[S] @ weights).max()) / 2
+    weights = np.vstack((weights, b))
 
     # identify the support vectors
     support_vectors = dual_X[S]
@@ -181,6 +182,18 @@ def main():
     weights = clf.coef_
     intercept = clf.intercept_
     weights = np.append(weights, intercept).reshape(-1, 1)
+
+    # plot the decision boundary and margins
+    x_line = np.linspace(X[:, 0].min(), X[:, 0].max(), 100) # create a 100 evenly spaced points over x1
+    y_line = -(x_line * weights[0] + weights[-1]) / weights[1]
+    d = 1 / np.linalg.norm(weights[:-1])    # perpendicular distance from y_line to 1 decision boundary, no offset in this calc
+    
+    # applying trig, we can get the other two margins through the SV
+    slope = weights[0] / weights[1]           # getting the slope of the decision boundary in terms of x2
+    vert_offset = np.sqrt(1 + slope**2) * d   # proof here: https://www.geeksforgeeks.org/distance-between-two-lines/ x2 =y x1 =x for slope
+    margin1 = y_line + vert_offset
+    margin2 = y_line - vert_offset
+    print(f'Margin width: 2/||w|| = {2 * d}')
 
     plt.figure(figsize=(8,6))
     plt.title('Data with d(x) + Margins - SkLearn')
