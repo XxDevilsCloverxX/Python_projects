@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from cvxopt import matrix, solvers
 from sklearn.svm import SVC
 
+from time import time
+
 def SVM_Evaluator(weights: np.ndarray, X: np.ndarray, t: np.ndarray):
     """
     @purpose:
@@ -31,15 +33,17 @@ def SVM_Evaluator(weights: np.ndarray, X: np.ndarray, t: np.ndarray):
 def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False):
     """
     @purpose:
-        -
+        - Calcaulte the Soft margin SVM using the dual form solution
     @params:
-        -
-        -
-        -
+        - X - input matrix
+        - t - target labels
+        - C - slack variable
     @return:
         - weights: weights and bias from the SVM solution
+        - time_end - time_start : elapsed time to compute the SVM solution
     """
     # Dual Form solution for the dataset - 1/2 x' P x + qx st Gx <= h & Ax = b
+    time_start = time()
     # copy the data
     dual_X= X.copy()
     # extract some information from the data
@@ -83,6 +87,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False):
     # Computing b and append to weights - investigate the failure here
     b = y[S] - np.dot(dual_X[S], weights)
     weights = np.vstack((weights, b.mean()))
+    time_end = time()
 
     # identify the support vectors
     support_vectors = dual_X[S]
@@ -136,13 +141,26 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False):
     plt.colorbar(label='Classes')
     plt.show()
 
-    return weights
+    return weights, time_end-time_start
 
 def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False):
+    """
+    @purpose:
+        - Calcaulte the Soft margin SVM using the sklearn solution
+    @params:
+        - X - input matrix
+        - t - target labels
+        - C - slack variable
+    @return:
+        - weights: weights and bias from the SVM solution
+        - time_end - time_start : elapsed time to compute the SVM solution
+    """
+    time_start = time()
     sk_x = X.copy()
     sk_y = t.copy() if not req_reclass else np.where(t==0, 1, -1).astype('float64')
     clf = SVC(C = C, kernel = 'linear')
     clf.fit(sk_x, sk_y.ravel()) 
+    time_end = time()
 
     print('w = ',clf.coef_)
     print('b = ',clf.intercept_)
@@ -201,7 +219,7 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False):
     plt.show()
 
 
-    return weights
+    return weights, time_end-time_start
 
 def main():
 
@@ -221,19 +239,40 @@ def main():
     plt.colorbar(label='Classes')
     plt.show()
     #########################################################################
+    times_dual  = []
+    times_sklrn = []
+    #########################################################################
     # soft margin SVM with C = 0.1
-    SoftMargin_SVM(X = X, t=t, C=0.1)
+    _, elapsed_time = SoftMargin_SVM(X = X, t=t, C=0.1)
+    times_dual.append(elapsed_time)
     #########################################################################
     # soft margin SVM with C = 100
-    SoftMargin_SVM(X = X, t=t, C=100)
-
+    _, elapsed_time = SoftMargin_SVM(X = X, t=t, C=100)
+    times_dual.append(elapsed_time)
     #########################################################################
     # sklearn solution for C = 0.1
-    SkLearn_SVM(X = X, t= t, C=0.1)
-    
+    _, elapsed_time = SkLearn_SVM(X = X, t= t, C=0.1)
+    times_sklrn.append(elapsed_time)
     #########################################################################
     # sklearn solution for C = 100
-    SkLearn_SVM(X = X, t= t, C=100)
+    _, elapsed_time = SkLearn_SVM(X = X, t= t, C=100)
+    times_sklrn.append(elapsed_time)
+
+    #########################################################################
+    # get the average run times
+    avg_dual  = sum(times_dual)  / len(times_dual)
+    avg_sklrn = sum(times_sklrn) / len(times_sklrn)
+
+    print()
+    print(f'Average runtime for implemented dual form solution - {avg_dual}')
+    print(f'Average runtime for sklearn solution - {avg_sklrn}')
+    
+    # Assuming avg_dual and avg_sklrn are the average runtimes for the implemented dual form and sklearn solution respectively
+    percentage_difference = ((avg_dual - avg_sklrn) / avg_sklrn) * 100
+    if avg_dual > avg_sklrn:
+        print(f'The implemented dual form had {percentage_difference:.2f}% more runtime than sklearn.')
+    else:
+        print(f'The implemented dual form had {abs(percentage_difference):.2f}% less runtime than sklearn.')
 
 if __name__ == '__main__':
     main()
