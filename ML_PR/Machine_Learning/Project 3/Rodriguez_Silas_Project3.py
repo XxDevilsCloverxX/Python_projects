@@ -85,7 +85,7 @@ def main(L:int = 100):
     weights_dataset = []    # this will hold onto the weights for each dataset (L x lambdas x rbfs + 1 x 1)
 
     # create permissible values for lambda
-    lambdas = np.linspace(start=-2.5, stop=1.75, num=10)  # get a num evenly spaced values of lambda between -2.5 & 1.75
+    lambdas = np.linspace(start=-2.5, stop=1.75, num=25)  # get a num evenly spaced values of lambda between -2.5 & 1.75
     lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
 
     for set in range(L):
