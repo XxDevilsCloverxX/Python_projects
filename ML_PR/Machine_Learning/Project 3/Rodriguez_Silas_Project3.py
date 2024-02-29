@@ -85,7 +85,7 @@ def main(L:int = 100):
     weights_dataset = []    # this will hold onto the weights for each dataset (L x lambdas x rbfs + 1 x 1)
 
     # create permissible values for lambda
-    lambdas = np.linspace(start=-2.5, stop=1.75, num=25)  # get a num evenly spaced values of lambda between -2.5 & 1.75
+    lambdas = np.linspace(start=-2.5, stop=1.75, num=50)  # get a num evenly spaced values of lambda between -2.5 & 1.75
     lambdas = np.exp(lambdas)   # So we can recreate the ln(lambda) axis between -2.5 to 1.5
 
     for set in range(L):
@@ -109,7 +109,7 @@ def main(L:int = 100):
     # convert the gathered weights to a np array
     weights_dataset = np.array(weights_dataset)
     
-    # generate a test dataset & matching sinusoid
+    # generate a test dataset
     x_test, t_test = generate_Dataset(N=1000)
     phi_test = kernel_RBF(X=x_test, k=num_rbfs)
 
@@ -121,21 +121,30 @@ def main(L:int = 100):
     sin_linspace_y = np.sin(2*np.pi*sin_linspace_x)
     phi_linspace_x = kernel_RBF(X=sin_linspace_x, k=num_rbfs)
 
-    # for each set of weights, compute the bias & test error
-    avg_bias_points = []
+    # for each set of weights, compute test error
     test_errors = []
+    for dataset in weights_dataset:
+        error_lambda = []
+        for alpha in dataset:
+            # compute the test error with this lambda
+            predictions = phi_test @ alpha
+            cost = compute_cost(predictions=predictions, targets=t_test)
+            error_lambda.append(cost)
+        error_lambda = np.array(error_lambda)
+        test_errors.append(error_lambda)
+    test_errors = np.array(test_errors)
+    test_error_averages = test_errors.mean(axis=0)
+    
+    # compute the bias
+    avg_bias_points = []
     for model_estimate in f_bars:
         # Use the model_estimate for this lambda
         predictions = phi_linspace_x @ model_estimate
-        test_predictions = phi_test @ model_estimate
-        # compute the cost and bias for this lambda
-        cost = compute_cost(predictions=test_predictions, targets=t_test)
         bias = (predictions - sin_linspace_y)**2  ## compute the bias for the weights with this lambda value
         # average the bias for this lambda
         avg_bias = np.mean(bias)                    ## average the bias and append to the computed biases
         avg_bias_points.append(avg_bias)
-        test_errors.append(cost)        
-
+    
     variances = []  # should become a L x lambdas matrix
     for key, dataset in Datasets.items():
         # extract the current dataset
@@ -165,10 +174,13 @@ def main(L:int = 100):
 
     # plot the statistics obtained
     plt.plot(np.log(lambdas), avg_bias_points, c='blue', label='(Bias)²')
-    plt.plot(np.log(lambdas), test_errors, c='black', label='Test error')
+    plt.plot(np.log(lambdas), test_error_averages, c='black', label='Test error')
     plt.plot(np.log(lambdas), avg_variances, c='red', label='Variance')
     plt.plot(np.log(lambdas), avg_variances+avg_bias_points, c='purple', label='(Bias)²+Variance')
     plt.xlabel('ln λ')
+    plt.ylabel('Cost')
+    max_y = max(test_error_averages.max(), (avg_variances+avg_bias_points).max())
+    plt.ylim(0, 1.05*max_y)
     plt.xlim(-3,3)
     plt.legend()
     plt.show()
