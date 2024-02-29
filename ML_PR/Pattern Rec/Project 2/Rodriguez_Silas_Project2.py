@@ -1,7 +1,7 @@
 """
 @Engineer: Silas Rodriguez
 @Course: ECE 5363 - Pattern Recognition
-@Date: Feb 18, 2024
+@Date: Feb 28, 2024
 """
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from cvxopt import matrix, solvers
 from sklearn.svm import SVC
 
-from time import time
+import timeit
 
 def SVM_Evaluator(weights: np.ndarray, X: np.ndarray, t: np.ndarray):
     """
@@ -43,7 +43,6 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
         - time_end - time_start : elapsed time to compute the SVM solution
     """
     # Dual Form solution for the dataset - 1/2 x' P x + qx st Gx <= h & Ax = b
-    time_start = time()
     # copy the data
     dual_X= X.copy()
     # extract some information from the data
@@ -88,7 +87,6 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     # Computing b and append to weights
     b = y[S] - dual_X[S] @ weights
     weights = np.vstack((weights, b.mean()))
-    time_end = time()
 
     # identify the support vectors
     support_vectors = dual_X[S]
@@ -143,7 +141,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
         plt.colorbar(label='Classes')
         plt.show()
 
-    return weights, time_end-time_start
+    return weights
 
 def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plot_en:bool=True):
     """
@@ -157,12 +155,10 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
         - weights: weights and bias from the SVM solution
         - time_end - time_start : elapsed time to compute the SVM solution
     """
-    time_start = time()
     sk_x = X.copy()
     sk_y = t.copy() if not req_reclass else np.where(t==0, 1, -1).astype('float64')
     clf = SVC(C = C, kernel = 'linear')
     clf.fit(sk_x, sk_y.ravel()) 
-    time_end = time()
 
     # get the support vectors
     support_vectors = sk_x[clf.support_]
@@ -223,7 +219,7 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
         plt.show()
 
 
-    return weights, time_end-time_start
+    return weights
 
 def generate_linearly_nonseparable_data(N:int):
     """
@@ -248,6 +244,14 @@ def generate_linearly_nonseparable_data(N:int):
     y = dataset[:, -1].reshape(-1, 1)
     return X, y
 
+def run_softmargin_svm(N):
+    X, t = generate_linearly_nonseparable_data(N=N)
+    SoftMargin_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
+
+def run_sklearn_svm(N):
+    X, t = generate_linearly_nonseparable_data(N=N)
+    SkLearn_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
+
 def main():
 
     # open the dataset
@@ -268,6 +272,7 @@ def main():
     #########################################################################
     # soft margin SVM with C = 0.1
     SoftMargin_SVM(X = X, t=t, C=0.1)
+    
     #########################################################################
     # soft margin SVM with C = 100
     SoftMargin_SVM(X = X, t=t, C=100)
@@ -281,31 +286,42 @@ def main():
     SkLearn_SVM(X = X, t= t, C=100)
     
     #########################################################################
-    # Time differences
-    times_dual  = []
+    # Specify the range of N values
+    n_values = np.arange(10, 1000, 100)
+    times_dual = []
     times_sklrn = []
-    x_plot = [i for i in range(50, 501, 50)]
+    np.random.seed(8)
 
-    np.random.seed(0)
-    for samples in x_plot:
-        print(f'Num Samples working : {samples}')
-        X, t = generate_linearly_nonseparable_data(N=samples)
-        _, time_dual = SoftMargin_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
-        _, time_sklr = SkLearn_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
+    print()
+    print('Entering timing loop... This will take a while')
+    for num_samples in n_values:
+        print(f'Num Samples working : {num_samples}')
+
+        # Timing SoftMargin_SVM function
+        time_dual = timeit.timeit(lambda: run_softmargin_svm(num_samples), number=5)
+
+        # Timing SkLearn_SVM function
+        time_sklr = timeit.timeit(lambda: run_sklearn_svm(num_samples), number=5)
 
         times_dual.append(time_dual)
         times_sklrn.append(time_sklr)
     
     print('Plotting...')
     plt.figure(figsize=(8,6))
-    plt.plot(x_plot, times_dual, c='red', label='CVXOPT time')
-    plt.plot(x_plot, times_sklrn, c='blue', label='LIBCVM time')
+    plt.subplot(1,2,1)
+    plt.plot(n_values, times_dual, c='red', label='CVXOPT time')
+    plt.xlabel('N Samples')
+    plt.ylabel('Elapsed Time (s)')
+    plt.title('LIBSVM vs CVXOPT Computational Time for Weights vs # Samples')
+    plt.legend()
+
+    plt.subplot(1,2,2)
+    plt.plot(n_values, times_sklrn, c='blue', label='LIBCVM time')
     plt.xlabel('N Samples')
     plt.ylabel('Elapsed Time (s)')
     plt.title('LIBSVM vs CVXOPT Computational Time for Weights vs # Samples')
     plt.legend()
     plt.show()
-
 
 if __name__ == '__main__':
     main()
