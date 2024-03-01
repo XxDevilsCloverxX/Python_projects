@@ -312,14 +312,14 @@ def main():
     plt.plot(n_values, times_dual, c='red', label='CVXOPT time')
     plt.xlabel('N Samples')
     plt.ylabel('Elapsed Time (s)')
-    plt.title('LIBSVM vs CVXOPT Computational Time for Weights vs # Samples')
+    plt.title('CVXOPT Computational Time vs N Samples')
     plt.legend()
 
     plt.subplot(1,2,2)
     plt.plot(n_values, times_sklrn, c='blue', label='LIBCVM time')
     plt.xlabel('N Samples')
     plt.ylabel('Elapsed Time (s)')
-    plt.title('LIBSVM vs CVXOPT Computational Time for Weights vs # Samples')
+    plt.title('LIBSVM Computational Time vs N Samples')
     plt.legend()
     plt.show()
 
