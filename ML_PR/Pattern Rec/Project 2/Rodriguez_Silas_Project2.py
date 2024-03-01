@@ -120,7 +120,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
 
     if plot_en:
         plt.figure(figsize=(8,6))
-        plt.title(f'Data with d(x) + Margins: C={C}')
+        plt.title(f'CVXOPT d(x) + Margins: C={C}')
         plt.scatter(support_vectors[:, 0], support_vectors[:, 1], facecolors='none', edgecolors='k', s=150, label=f'Support Vectors: {np.sum(S)}')    # highlight SVs
         plt.scatter(misclassified_points[:, 0], misclassified_points[:, 1], marker='s', edgecolors='black', facecolors='none', s=150, label=f'Misclassified Vectors: {misclasses}')
         plt.scatter(X[:,0], X[:,1], c=t, cmap='coolwarm')
@@ -139,7 +139,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.colorbar(label='Classes')
-        plt.show()
+        # plt.show()
 
     return weights
 
@@ -197,7 +197,7 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
 
     if plot_en:
         plt.figure(figsize=(8,6))
-        plt.title(f'Data with d(x) + Margins - SkLearn C={C}')
+        plt.title(f'SkLearn d(x) + Margins C={C}')
         plt.scatter(support_vectors[:, 0], support_vectors[:, 1], facecolors='none', edgecolors='k', s=150, label=f'Support Vectors: {len(support_vectors)}')    # highlight SVs
         plt.scatter(misclassified_points[:, 0], misclassified_points[:, 1], marker='s', edgecolors='black', facecolors='none', s=150, label=f'Misclassified Vectors: {misclasses}')
         plt.scatter(X[:,0], X[:,1], c=t, cmap='coolwarm')
@@ -216,8 +216,7 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.colorbar(label='Classes')
-        plt.show()
-
+        # plt.show()
 
     return weights
 
@@ -252,6 +251,7 @@ def run_sklearn_svm(N):
     X, t = generate_linearly_nonseparable_data(N=N)
     SkLearn_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
 
+
 def main():
 
     # open the dataset
@@ -268,23 +268,24 @@ def main():
     plt.xlabel('x1')
     plt.ylabel('x2')
     plt.colorbar(label='Classes')
-    plt.show()
+
     #########################################################################
     # soft margin SVM with C = 0.1
     SoftMargin_SVM(X = X, t=t, C=0.1)
-    
+    print()
     #########################################################################
     # soft margin SVM with C = 100
     SoftMargin_SVM(X = X, t=t, C=100)
-    
+    print()
     #########################################################################
     # sklearn solution for C = 0.1
     SkLearn_SVM(X = X, t= t, C=0.1)
-    
+    print()
     #########################################################################
     # sklearn solution for C = 100
     SkLearn_SVM(X = X, t= t, C=100)
-    
+    print()    
+    plt.show()
     #########################################################################
     # Specify the range of N values
     n_values = np.arange(10, 1000, 100)
@@ -292,7 +293,6 @@ def main():
     times_sklrn = []
     np.random.seed(8)
 
-    print()
     print('Entering timing loop... This will take a while')
     for num_samples in n_values:
         print(f'Num Samples working : {num_samples}')
