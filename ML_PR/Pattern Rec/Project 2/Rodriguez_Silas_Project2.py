@@ -82,7 +82,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     weights = ((y * lambdas).T @ dual_X).reshape(-1,1)
 
     # Selecting the set of indices S corresponding to non zero parameters
-    S = (lambdas > 1e-4).flatten()
+    S = (lambdas > 1e-6).flatten()
 
     # Computing b and append to weights
     b = y[S] - dual_X[S] @ weights
@@ -233,8 +233,8 @@ def generate_linearly_nonseparable_data(N:int):
     class1_x = np.random.normal(loc=25, size=(N,2))
     class2_x = np.random.normal(loc=28.5, size=(N,2))
 
-    class1_t = np.zeros((N, 1))
-    class2_t = np.ones((N, 1))
+    class1_t = np.ones((N, 1))
+    class2_t = -1*np.ones((N, 1))
 
     dataset = np.vstack((np.hstack((class1_x, class1_t)), np.hstack((class2_x, class2_t))))
     np.random.shuffle(dataset)
@@ -242,15 +242,6 @@ def generate_linearly_nonseparable_data(N:int):
     X = dataset[:, :-1]
     y = dataset[:, -1].reshape(-1, 1)
     return X, y
-
-def run_softmargin_svm(N):
-    X, t = generate_linearly_nonseparable_data(N=N)
-    SoftMargin_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
-
-def run_sklearn_svm(N):
-    X, t = generate_linearly_nonseparable_data(N=N)
-    SkLearn_SVM(X=X, t=t, C=10, req_reclass=True, plot_en=False)
-
 
 def main():
 
@@ -287,40 +278,62 @@ def main():
     print()    
     plt.show()
     #########################################################################
-    # Specify the range of N values
-    n_values = np.arange(10, 1000, 100)
-    times_dual = []
-    times_sklrn = []
-    np.random.seed(8)
+    # Create a logarithmically spaced array
+    n_values = np.logspace(np.log2(16), np.log2(1024), num=25, base=2.0, dtype=int)
+    n_values = np.unique(n_values)  # drop any duplicate values
+    times_cvxopt = []
+    times_sklrn  = []
 
     print('Entering timing loop... This will take a while')
     for num_samples in n_values:
-        print(f'Num Samples working : {num_samples}')
+        print(f'Num Samples working : {2*num_samples}') # My function generates N * 2 for the dataset (evenly filled classes)
+        # Generate some data for this itteration
+        X, t = generate_linearly_nonseparable_data(N=num_samples)
 
         # Timing SoftMargin_SVM function
-        time_dual = timeit.timeit(lambda: run_softmargin_svm(num_samples), number=5)
+        time_cvx = timeit.repeat(lambda: SoftMargin_SVM(X=X, t=t, C=1, plot_en=False), number=1, repeat=10)
+        min_time_cvx = min(time_cvx)
 
         # Timing SkLearn_SVM function
-        time_sklr = timeit.timeit(lambda: run_sklearn_svm(num_samples), number=5)
+        time_sklr = timeit.repeat(lambda: SkLearn_SVM(X=X, t=t, C=1, plot_en=False), number=1, repeat=1000)
+        min_time_sklr = min(time_sklr)
 
-        times_dual.append(time_dual)
-        times_sklrn.append(time_sklr)
-    
-    print('Plotting...')
-    plt.figure(figsize=(8,6))
-    plt.subplot(1,2,1)
-    plt.plot(n_values, times_dual, c='red', label='CVXOPT time')
-    plt.xlabel('N Samples')
-    plt.ylabel('Elapsed Time (s)')
-    plt.title('CVXOPT Computational Time vs N Samples')
-    plt.legend()
+        times_cvxopt.append(min_time_cvx)
+        times_sklrn.append(min_time_sklr)
 
-    plt.subplot(1,2,2)
-    plt.plot(n_values, times_sklrn, c='blue', label='LIBCVM time')
-    plt.xlabel('N Samples')
-    plt.ylabel('Elapsed Time (s)')
-    plt.title('LIBSVM Computational Time vs N Samples')
+    times_cvxopt = np.array(times_cvxopt)
+    times_sklrn = np.array(times_sklrn)
+
+    plt.figure(figsize=(14, 6))
+    plt.subplot(1,3,1)
+    plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
+    plt.plot(n_values*2, times_sklrn, label='LIBSVM Average Execution Time (s)', color='blue')
+    plt.ylabel("Average Execution Time")
+    plt.xlabel("Number of Samples, N")
+    plt.title('Execution Time vs N (LIBSVM vs CVXOPT)- Same Scale')
     plt.legend()
+    plt.grid(True)
+
+    plt.subplot(1,3,2)
+    plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
+    plt.plot(n_values*2, times_sklrn*1000, label='LIBSVM Average Execution Time (ms)', color='blue')
+    plt.ylabel("Average Execution Time")
+    plt.xlabel("Number of Samples, N")
+    plt.title('Execution Time vs N (LIBSVM vs CVXOPT)- Scaled')
+    plt.legend()
+    plt.grid(True)
+
+    plt.subplot(1,3,3)
+    plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
+    plt.plot(n_values*2, times_sklrn, label='LIBSVM Average Execution Time (s)', color='blue')
+    plt.ylabel("Average Execution Time (s)")
+    plt.yscale('log')
+    plt.xlabel("Number of Samples, N")
+    plt.title('Semilog Execution Time vs N (LIBSVM vs CVXOPT)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
     plt.show()
 
 if __name__ == '__main__':
