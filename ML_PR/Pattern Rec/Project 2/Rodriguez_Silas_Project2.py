@@ -82,7 +82,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     weights = ((y * lambdas).T @ dual_X).reshape(-1,1)
 
     # Selecting the set of indices S corresponding to non zero parameters
-    S = (lambdas > 1e-6).flatten()
+    S = (lambdas > 1e-3).flatten()
 
     # Computing b and append to weights
     b = y[S] - dual_X[S] @ weights
@@ -305,7 +305,7 @@ def main():
     times_sklrn = np.array(times_sklrn)
 
     plt.figure(figsize=(14, 6))
-    plt.subplot(1,3,1)
+    plt.subplot(1,2,1)
     plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
     plt.plot(n_values*2, times_sklrn, label='LIBSVM Average Execution Time (s)', color='blue')
     plt.ylabel("Average Execution Time")
@@ -314,22 +314,12 @@ def main():
     plt.legend()
     plt.grid(True)
 
-    plt.subplot(1,3,2)
+    plt.subplot(1,2,2)
     plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
     plt.plot(n_values*2, times_sklrn*1000, label='LIBSVM Average Execution Time (ms)', color='blue')
     plt.ylabel("Average Execution Time")
     plt.xlabel("Number of Samples, N")
     plt.title('Execution Time vs N (LIBSVM vs CVXOPT)- Scaled')
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(1,3,3)
-    plt.plot(n_values*2, times_cvxopt, label='CVXOPT Average Execution Time (s)', color='red')
-    plt.plot(n_values*2, times_sklrn, label='LIBSVM Average Execution Time (s)', color='blue')
-    plt.ylabel("Average Execution Time (s)")
-    plt.yscale('log')
-    plt.xlabel("Number of Samples, N")
-    plt.title('Semilog Execution Time vs N (LIBSVM vs CVXOPT)')
     plt.legend()
     plt.grid(True)
 
