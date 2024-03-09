@@ -128,12 +128,12 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
         plt.plot(x_line, margin1, c='red', label='d(x) = 1')
         plt.plot(x_line, margin2, c='blue', label='d(x) = -1')
 
-        # Shade the entire region above margin1 in red
-        plt.fill_between(x_line, y_line, max(margin1), color='red', alpha=0.2, label='Positive Region (C=1)')
         # Shade the entire region below margin2 in blue
-        plt.fill_between(x_line, y_line, min(margin2), color='blue', alpha=0.2, label='Negative Region (C=-1)')
+        plt.fill_between(x_line, y_line, min(margin2), color='blue', alpha=0.2, label='Positive Region (C0)')
+        # Shade the entire region above margin1 in red
+        plt.fill_between(x_line, y_line, max(margin1), color='red', alpha=0.2, label='Negative Region (C1)')
         # shade the margin with gray
-        plt.fill_between(x_line, margin1, margin2, color='black', alpha=0.2, label='Margin')
+        plt.fill_between(x_line, margin1, margin2, color='black', alpha=0.2, label='Maximized Margin')
 
         plt.legend()
         plt.xlabel('x1')
@@ -205,10 +205,10 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
         plt.plot(x_line, margin1, c='red', label='d(x) = 1')
         plt.plot(x_line, margin2, c='blue', label='d(x) = -1')
 
-        # Shade the entire region above margin1 in red
-        plt.fill_between(x_line, y_line, max(margin1), color='red', alpha=0.2, label='Positive Region (C=1)')
         # Shade the entire region below margin2 in blue
-        plt.fill_between(x_line, y_line, min(margin2), color='blue', alpha=0.2, label='Negative Region (C=-1)')
+        plt.fill_between(x_line, y_line, min(margin2), color='blue', alpha=0.2, label='Positive Region (C0)')
+        # Shade the entire region above margin1 in red
+        plt.fill_between(x_line, y_line, max(margin1), color='red', alpha=0.2, label='Negative Region (C1)')
         # shade the margin with gray
         plt.fill_between(x_line, margin1, margin2, color='black', alpha=0.2, label='Margin')
 
