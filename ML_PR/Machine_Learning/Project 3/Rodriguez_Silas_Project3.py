@@ -79,9 +79,9 @@ def main(L:int = 100):
     np.random.seed(52)
     
     # Setup loop variables + hyperparams
-    num_rbfs = 10    # increasing this puts more equi-distant means around the true mean - leads to overfitting regime
+    num_rbfs = 10           # increasing this puts more equi-distant means around the true mean - leads to overfitting regime
     num_pts = 25
-    Datasets = {}    # will collect information about each dataset, (X, t, phi)
+    Datasets = {}           # will collect information about each dataset, (X, t, phi)
     weights_dataset = []    # this will hold onto the weights for each dataset (L x lambdas x rbfs + 1 x 1)
 
     # create permissible values for lambda
