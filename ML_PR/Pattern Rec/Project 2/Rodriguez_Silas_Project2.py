@@ -11,22 +11,19 @@ from sklearn.svm import SVC
 
 import timeit
 
-def SVM_Evaluator(weights: np.ndarray, X: np.ndarray, t: np.ndarray):
+def SVM_Evaluator(predictions:np.ndarray, t: np.ndarray):
     """
     @purpose:
         - Evaluate the SVM classifier boundary
     @params:
-        - weights - weight vector with bias prepended
-        - X - feature matrix with 1s prepended
+        - predictions - predicted labels
         - t - target labels
     @return:
         - misclasses - number of misclasses
         - accuracy  - % accuracy of the SVM
     """
-    predictions = X @ weights
-    classes = np.sign(predictions)
-    misclasses = np.sum(classes!=t)
-    index_misclasses = np.nonzero(classes!=t)
+    misclasses = np.sum(predictions!=t)
+    index_misclasses = np.nonzero(predictions!=t)
     accuracy = 1 - misclasses / t.shape[0]
     return misclasses, index_misclasses[0], accuracy*100
 
@@ -50,8 +47,8 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     y = np.where(t==0, 1, -1).astype('float64') if req_reclass else t.copy()
 
     # get the H that is used to compute P
-    H = dual_X * y
-    P = H @ H.T
+    K = dual_X @ dual_X.T
+    P = np.outer(y, y) * K
     # generate A
     A = y.T
     # generate q
@@ -78,18 +75,33 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     # Extract the optimal solution
     lambdas = np.array(sol['x'])
 
-    # w parameter in vectorized form
-    weights = ((y * lambdas).T @ dual_X).reshape(-1,1)
+    # Support vectors have non zero lagrange multipliers
+    sv = (lambdas > 1e-3).flatten()
+    ind = np.arange(len(lambdas))[sv]
+    a_sv = lambdas[sv].ravel()
+    X_sv = X[sv].ravel()
+    y_sv = y[sv].ravel()
 
-    # Selecting the set of indices S corresponding to non zero parameters
-    S = (lambdas > 1e-3).flatten()
+    weights = np.sum(y[sv] * lambdas[sv] * dual_X[sv], axis=0)
 
-    # Computing b and append to weights
-    b = y[S] - dual_X[S] @ weights
-    weights = np.vstack((weights, b.mean()))
+    # Intercept - average over indices where 0 < alpha_i < C
+    b = 0
+    alpha_diff_C_count = 0
+    is_eq_to_C = lambda a: C is not None and a > C - 1e-3
 
+    for n in range(len(a_sv)):
+        if is_eq_to_C(a_sv[n]):
+            continue
+
+        alpha_diff_C_count += 1
+        b += y_sv[n]
+        b -= np.sum(a_sv * y_sv * K[ind[n],sv])
+
+    b = b / alpha_diff_C_count if alpha_diff_C_count > 0 else 0
+
+    weights = np.append(weights, b)
     # identify the support vectors
-    support_vectors = dual_X[S]
+    support_vectors = dual_X[sv]
 
     # plot the decision boundary and margins
     x_line = np.linspace(X[:, 0].min(), X[:, 0].max(), 100) # create a 100 evenly spaced points over x1
@@ -104,14 +116,15 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
 
     # Test classifications:
     dual_X = np.c_[X, np.ones(X.shape[0])]
-    misclasses, index_misclasses, accuracy = SVM_Evaluator(weights=weights, X=dual_X, t=y)
+    predictions = np.sign(dual_X @ weights)
+    misclasses, index_misclasses, accuracy = SVM_Evaluator(predictions=predictions, t=y)
     
     # Display results
     if plot_en:
         print("Optimal solution w:")
         print(weights)
         print("Lambdas (dual):")
-        print(lambdas[S])
+        print(lambdas[sv])
         print(f'Margin width: 2/||w|| = {2 * d}')
         print(f'{misclasses} misclasses with {accuracy}% accuracy!')
 
@@ -121,7 +134,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
     if plot_en:
         plt.figure(figsize=(8,6))
         plt.title(f'CVXOPT d(x) + Margins: C={C}')
-        plt.scatter(support_vectors[:, 0], support_vectors[:, 1], facecolors='none', edgecolors='k', s=150, label=f'Support Vectors: {np.sum(S)}')    # highlight SVs
+        plt.scatter(support_vectors[:, 0], support_vectors[:, 1], facecolors='none', edgecolors='k', s=150, label=f'Support Vectors: {np.sum(sv)}')    # highlight SVs
         plt.scatter(misclassified_points[:, 0], misclassified_points[:, 1], marker='s', edgecolors='black', facecolors='none', s=150, label=f'Misclassified Vectors: {misclasses}')
         plt.scatter(X[:,0], X[:,1], c=t, cmap='coolwarm')
         plt.plot(x_line, y_line, c='black', label='d(x) = 0')
@@ -180,7 +193,8 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
 
     # Test classifications:
     sk_x = np.c_[X, np.ones(X.shape[0])]
-    misclasses, index_misclasses, accuracy = SVM_Evaluator(weights=weights, X=sk_x, t=sk_y)
+    predictions = np.sign(sk_x @ weights)
+    misclasses, index_misclasses, accuracy = SVM_Evaluator(predictions=predictions, t=sk_y)
 
     if plot_en:
         print('w = ',clf.coef_)
@@ -189,8 +203,8 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, plo
         print('Support vectors = ', clf.support_vectors_)
         print('Number of support vectors for each class = ', clf.n_support_)
         print('Coefficients of the support vector in the decision function = ', np.abs(clf.dual_coef_))
-        print(f'Margin width: 2/||w|| = {2 * d}')
-        print(f'{misclasses} misclasses with {accuracy}% accuracy!')
+        print(f'Margin width: 2/||w|| = {2 * d:.2f}')
+        print(f'{misclasses} misclasses with {accuracy:.2f}% accuracy!')
 
     # Plotting misclassified points with black squares
     misclassified_points = X[index_misclasses]  # Extract misclassified points
@@ -276,7 +290,8 @@ def main():
     # sklearn solution for C = 100
     SkLearn_SVM(X = X, t= t, C=100)
     print()    
-    plt.show()
+    # plt.show()
+    return
     #########################################################################
     # Create a logarithmically spaced array
     n_values = np.logspace(np.log2(16), np.log2(1024), num=25, base=2.0, dtype=int)
