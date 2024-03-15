@@ -99,7 +99,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, req_reclass:bool=False, 
 
     b = b / alpha_diff_C_count if alpha_diff_C_count > 0 else 0
 
-    weights = np.append(weights, b)
+    weights = np.append(weights, b).reshape(-1,1)
     # identify the support vectors
     support_vectors = dual_X[sv]
 
@@ -290,7 +290,7 @@ def main():
     # sklearn solution for C = 100
     SkLearn_SVM(X = X, t= t, C=100)
     print()    
-    # plt.show()
+    plt.show()
     return
     #########################################################################
     # Create a logarithmically spaced array
