@@ -154,7 +154,7 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, sigma:float=1.75, plot_e
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.title(f'Soft Margin SVM Decision Surfaces with C={C}, sigma={sigma}')
-        plt.show()
+        # plt.show()
 
     return X_sv, a_sv, b, y_sv
 
@@ -219,7 +219,7 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, gamma:float=8/49, plot_en:b
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.title(f'SkLearn SVM Decision Surfaces with C={C}, sigma={1.75}')
-        plt.show()
+        # plt.show()
 
     return support_vectors, dual_coefs, intercept, n_support
 
@@ -250,14 +250,15 @@ def main():
     SkLearn_SVM(X = X, t=t, C=10)
     print()
     # #########################################################################
-    # # sklearn solution for C = 0.1
-    # SkLearn_SVM(X = X, t= t, C=0.1)
-    # print()
-    # #########################################################################
-    # # sklearn solution for C = 100
-    # SkLearn_SVM(X = X, t= t, C=100)
-    # print()    
-    # plt.show()
+    # sklearn solution for C = 0.1
+    SoftMargin_SVM(X = X, t= t, C=100)
+    print()
+    #########################################################################
+    # sklearn solution for C = 100
+    SkLearn_SVM(X = X, t= t, C=100)
+    print()    
+    #########################################################################
+    plt.show()
 
 if __name__ == '__main__':
     main()
