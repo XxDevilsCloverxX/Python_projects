@@ -13,7 +13,6 @@ class SoftMaxRegressor:
                 kernel='rbf') -> None:
         # model parameters
         self.weights = weights
-        self.alpha = alpha
         self.kernel = kernel
         self.loss = []
         self.learn_rate = 1.0
@@ -65,8 +64,12 @@ class SoftMaxRegressor:
             # Read the image
             image_path = os.path.join(directory, image_file)
             img = cv2.imread(image_path)
+            resize = cv2.resize(img, (30, 30))
+            blur = cv2.GaussianBlur(resize, (3,3), sigmaX=0.8)
 
-            norm_img = self.img_preproc(img=img)
+            # Convert the image to grayscale
+            gray_img = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+            norm_img = gray_img / 255
 
             # Display the image on the corresponding subplot
             axs[i].imshow(norm_img, cmap='gray')
@@ -83,34 +86,10 @@ class SoftMaxRegressor:
         
         plt.show()
 
-    def mapFeatures(self, input:np.ndarray):
-        """
-        @purpose:
-            take an input vector & map its measurements to another feature space
-        @param:
-            input - input vector in input space
-        @return:
-            feature_vect - feature vector of input vector in mapped space
-        """
-        pass
 
-    def rbfKernel(self, ):
         """
         """
         pass
-
-    def gradient(self, predictions:np.ndarray, labels:np.ndarray, designMatrix:np.ndarray) -> np.ndarray:
-        """
-        @purpose:
-            Compute the gradient of the iterattion of the cost function
-        @return:
-            gradient loss for each class
-        """
-        # Compute the error (difference between predictions and labels)
-        error = predictions - labels  # N x K
-        # Compute the gradient by multiplying the error by the design matrix
-        grad = np.dot(designMatrix.T, error)    # (NxL)^T * N x K => L x K: Computes the loss for each measurement across all classes
-        return grad            
 
     def clearWeights(self):
         self.weights = np.zeros_like(self.weights) if self.weights is not None else None
@@ -178,8 +157,28 @@ class SoftMaxRegressor:
             # yield the batch, and the labels
             yield input_X, input_labels, exhaust
 
-    def fit(self, data:np.ndarray, labels:np.ndarray,
-            epochs:int=10000, epsilon:float=1e-3, batch_size:int=1000, beta:float=0):
+    def gradient(self, scores: np.ndarray, labels: np.ndarray, designMatrix: np.ndarray) -> np.ndarray:
+        """
+        Compute the gradient of the iteration of the cost function.
+
+        Args:
+            scores (np.ndarray): Predicted scores for each class.
+            labels (np.ndarray): One-hot encoded target labels.
+            designMatrix (np.ndarray): Design matrix or input features.
+
+        Returns:
+            np.ndarray: Gradient of the loss function with respect to the weights.
+        """
+        N = scores.shape[0]  # Number of samples
+
+        # Compute the gradient of the loss function
+        gradient = np.dot(designMatrix.T, (scores - labels)) / N
+
+        return gradient
+
+    
+    def fit(self, directory:str=None, batch_size:int=1,
+            epochs:int=10000, epsilon:float=1e-3, beta:float=0):
         """
         @purpose:
             Fit a model using gradient descent (mini batch)
@@ -191,28 +190,77 @@ class SoftMaxRegressor:
             batch_size - number of images to use in a batch for training
             beta - smoothing hyperparameter
         """
-        assert beta >0, f'{beta} < 0 not permissible'
-        assert batch_size >= 1, f'batch_size {batch_size} must be greater than or equal to 1'
-        num_samples, num_features = data.shape
-        num_classes = labels.shape[1]
-        self.weights = np.zeros((num_features, num_classes))  # Initialize weights to zeros
-        self.loss.clear()
+        assert beta >= 0, f'{beta} < 0 not permissible'
+        # create a mini_batch generator
+        generator = self.generate_minibatch(directory=directory, batch_size=batch_size)
+        batch_x, batch_t, epoch_flag = next(generator)
 
-    def predict(self, designMatrix:np.ndarray) -> np.ndarray:
+        num_samples, num_features = batch_x.shape
+        num_classes = batch_t.shape[1]                        # one hot encoding shape
+        self.weights = np.ones((num_features, num_classes))  # Initialize weights to ones
+        print(f'Init Weights: {self.weights.shape} * 0')
+        self.loss.clear()                                     # calling this generator will clear the loss computed previously
+        
+        while True:
+            # upper limit on the epochs
+            for epoch in range(epochs):
+                print(f'Working Epoch: {epoch}/{epochs}')
+                total_loss = 0
+                
+                # train through the whole batch before next epoch
+                while epoch_flag is not True:
+                    # make a prediction on the data
+                    probs = self.calcProbability(batch_x)
+                    # Compute gradient
+                    grad = self.gradient(scores=probs, labels=batch_t, designMatrix=batch_x)
+                    # # Update weights using gradient descent with L2 regularization
+                    # self.weights -= self.learn_rate * (grad + 2 * beta * self.weights)
+                    # # reduce learning rate
+                    # self.learn_rate *= 0.9
+                    # # print(self.weights)
+                    # # Compute loss
+                    # batch_loss = self.lossFunction(labels=batch_t, predictions=probs)
+                    # total_loss += batch_loss
+                    # # update the data
+                    # batch_x, batch_t, epoch_flag = next(generator)
+                
+                # Calculate average loss for the epoch
+                avg_loss = total_loss / num_samples
+                self.loss.append(avg_loss)
+                
+                # Print loss for every 100 epochs
+                if epoch % 100 == 0:
+                    print(f"Epoch {epoch}: Loss = {avg_loss}")
+
+                # Check for convergence
+                if len(self.loss) > 1 and abs(self.loss[-1] - self.loss[-2]) < epsilon:
+                    print(f"Minimum reached at epoch {epoch}. Stopping training.")
+                    break
+
+    def calcProbability(self, designMatrix:np.ndarray) -> np.ndarray:
         """
         @purpose:
             use the computed weights to make a prediction matrix, Y
         @param:
             designMatrix: Phi(x) -> mapped input vectors NxL
         @return:
-            Y - > prediction matrix
+            Y - > prediction matrix of probabilites
         """
-        z = designMatrix @ self.weights
+        probabilities = []
+        for row in designMatrix:
+            temp = row @ self.weights
+            probabilities.append(self.softmax(temp))
+        return np.array(probabilities)
 
-        exp_z = np.exp(z)
-        softmax_scores = exp_z / np.sum(exp_z, axis=1, keepdims=True)
+    def softmax(self, input_vector):
+        # Calculate the exponent of each element in the input vector
+        exponents = np.exp(input_vector)
 
-        return softmax_scores
+        # divide the exponent of each value by the sum of the exponents
+        sum_of_exponents = np.sum(exponents)
+        probabilities = exponents / sum_of_exponents
+
+        return probabilities
 
     def lossFunction(self, labels:np.ndarray, predictions:np.ndarray)-> float:
         """
@@ -238,17 +286,12 @@ if __name__ == '__main__':
     parser.add_argument('--directory', '-d', type=str, help='Directory containing images')
     parser.add_argument('--batch_size', '-b', type=int, default=1000, help='Batch size for training')
     parser.add_argument('--epochs', '-e', type=int, default=10000, help='Num Epochs (max) for training')
-
+    parser.add_argument('--lambda', '-l', type=float, default=0, help='Regularizer for training')
     args = parser.parse_args()
 
     if not args.directory:
         args.directory = input("Enter the directory path containing images: ")
 
     model = SoftMaxRegressor()
-    data_generator = model.generate_minibatch(args.directory, args.batch_size)
-
-    for i in range(args.epochs):
-        print(f'Batch {i}: ')
-        batch_data, labels, epoch_flag = next(data_generator)
-        if epoch_flag:
-            print('Epoch completed')
+    
+    model.fit(directory=args.directory, batch_size=args.batch_size, epochs=args.epochs, beta=0)
