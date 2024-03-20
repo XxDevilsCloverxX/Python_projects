@@ -115,7 +115,7 @@ class SoftMaxRegressor:
     def clearWeights(self):
         self.weights = np.zeros_like(self.weights) if self.weights is not None else None
 
-    def generate_minibatch(self, directory:str, batch_size:int=1):
+    def generate_minibatch(self, directory:str=None, batch_size:int=1):
         """
             Generate a mini-batch of images along with labels from the given directory.
         Args:
@@ -125,6 +125,8 @@ class SoftMaxRegressor:
         Yields:
             Tuple[np.ndarray, np.ndarray]: A tuple containing the mini-batch of images and their labels.
         """
+        assert directory is not None, "A directory must be provided."
+
         subdirectories = sorted([os.path.join(directory, subdir) for subdir in os.listdir(directory) if
                             os.path.isdir(os.path.join(directory, subdir))])
 
@@ -136,6 +138,8 @@ class SoftMaxRegressor:
         refill = [img.copy() for img in subdir_images]
 
         while True:
+            # bool to track the state of refills - used for epochs
+            exhaust = False
             # for each of the subdirectories of images, generate some images
             selected_images = []
             selected_labels = []
@@ -146,7 +150,7 @@ class SoftMaxRegressor:
                 # shuffle the data
                 random.shuffle(imageset)
                 # select some of the data, and remove it from the imageset
-                size = batch_size if batch_size < len(imageset) else len(imageset)
+                size = batch_size//len(subdirectories) if batch_size//len(subdirectories) < len(imageset) else len(imageset)
                 select_indices = np.random.choice(len(imageset), size=size, replace=False)
                 selected_images.append([imageset.pop(idx) for idx in sorted(select_indices, reverse=True)])
 
@@ -154,6 +158,12 @@ class SoftMaxRegressor:
                 Labels = np.array([np.eye(len(subdirectories))[dir] for _ in select_indices])
                 selected_labels.append(Labels)
             
+            # if the subdir_images are empty, refill
+            if all([len(images)==0 for images in subdir_images]):
+                for dir, row in enumerate(refill):
+                    subdir_images[dir] = row.copy()
+                exhaust = True
+
             # preprocess the images
             input_X = []
             for subdir in selected_images:
@@ -166,12 +176,7 @@ class SoftMaxRegressor:
             input_X = np.array(input_X)
             input_labels = np.vstack(selected_labels)
             # yield the batch, and the labels
-            yield input_X, input_labels
-
-            # if the subdir_images are empty, refill
-            if all([len(images)==0 for images in subdir_images]):
-                for dir, row in enumerate(refill):
-                    subdir_images[dir] = row.copy()
+            yield input_X, input_labels, exhaust
 
     def fit(self, data:np.ndarray, labels:np.ndarray,
             epochs:int=10000, epsilon:float=1e-3, batch_size:int=1000, beta:float=0):
@@ -244,5 +249,6 @@ if __name__ == '__main__':
 
     for i in range(args.epochs):
         print(f'Batch {i}: ')
-        batch_data, labels = next(data_generator)
-        # Use batch_data and batch_labels for training
+        batch_data, labels, epoch_flag = next(data_generator)
+        if epoch_flag:
+            print('Epoch completed')
