@@ -7,7 +7,7 @@ import argparse
 import os
 import random
 
-class LogisticRegressor:
+class SoftMaxRegressor:
     
     def __init__(self, weights:np.ndarray=None, alpha:float=0,
                 kernel='rbf') -> None:
@@ -15,6 +15,21 @@ class LogisticRegressor:
         self.weights = weights
         self.alpha = alpha
         self.kernel = kernel
+
+    def img_preproc(self, img:np.ndarray) -> np.ndarray:
+        """
+        @purpose:
+            Take an input image, apply preprocessing technique to it
+        @return:
+            Image with pre-processing accomplished
+        """
+        resize = cv2.resize(img, (30, 30))
+        blur = cv2.GaussianBlur(resize, (3,3), sigmaX=0.8)
+
+        # Convert the image to grayscale
+        gray_img = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+        norm_img = gray_img / 255
+        return norm_img
 
     def visualizeDataset(self, directory:str=None):
         """
@@ -47,15 +62,11 @@ class LogisticRegressor:
             # Read the image
             image_path = os.path.join(directory, image_file)
             img = cv2.imread(image_path)
-            
-            # Convert the image to grayscale
-            gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            
-            # Apply adaptive thresholding   
-            _, thresholded_img = cv2.threshold(gray_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
+
+            norm_img = self.img_preproc(img=img)
+
             # Display the image on the corresponding subplot
-            axs[i].imshow(thresholded_img, cmap='gray')
+            axs[i].imshow(norm_img, cmap='gray')
             axs[i].axis('off')
             
             # Extracting the last numbers from the filename to use as the title
@@ -69,8 +80,14 @@ class LogisticRegressor:
         
         plt.show()
 
-    def mapFeatures(self):
+    def mapFeatures(self, input:np.ndarray):
         """
+        @purpose:
+            take an input vector & map its measurements to another feature space
+        @param:
+            input - input vector in input space
+        @return:
+            feature_vect - feature vector of input vector in mapped space
         """
         pass
 
@@ -79,20 +96,72 @@ class LogisticRegressor:
         """
         pass
 
-    def fit(self, ):
+    def gradient(self, predictions:np.ndarray, labels:np.ndarray, designMatrix:np.ndarray) -> np.ndarray:
         """
+        @purpose:
+            Compute the gradient of the iterattion of the cost function
+        @return:
+            gradient loss for each class
         """
-        pass
+        # Compute the error (difference between predictions and labels)
+        error = predictions - labels  # N x K
+        # Compute the gradient by multiplying the error by the design matrix
+        grad = np.dot(designMatrix.T, error)    # (NxL)^T * N x K => L x K: Computes the loss for each measurement across all classes
+        return grad            
 
-    def predict(self, ):
+    def fit(self, data:np.ndarray, labels:np.ndarray,
+            epochs:int=10000, epsilon:float=1e-3, batch_size:int=1000, beta:float=0):
         """
+        @purpose:
+            Fit a model using gradient descent (mini batch)
+        @param:
+            data - data being fit -> feature space
+            labels - target labels for the data - one-hot encoded
+            epochs - max iterattions before grad descent is stopped
+            epsilon - threshold to stop when delta ||Gradient|| less than this value
+            batch_size - number of images to use in a batch for training
+            beta - smoothing hyperparameter
         """
-        pass
+        assert beta >0, f'{beta} < 0 not permissible'
+        assert batch_size >= 1, f'batch_size {batch_size} must be greater than or equal to 1'
+        num_samples, num_features = data.shape
+        num_classes = labels.shape[1]
+        self.weights = np.zeros((num_features, num_classes))  # Initialize weights to zeros
 
-    def lossFunction(self, ):
+
+    def predict(self, designMatrix:np.ndarray) -> np.ndarray:
         """
+        @purpose:
+            use the computed weights to make a prediction matrix, Y
+        @param:
+            designMatrix: Phi(x) -> mapped input vectors NxL
+        @return:
+            Y - > prediction matrix
         """
-        pass
+        z = designMatrix @ self.weights
+
+        exp_z = np.exp(z)
+        softmax_scores = exp_z / np.sum(exp_z, axis=1, keepdims=True)
+
+        return softmax_scores
+
+    def lossFunction(self, labels:np.ndarray, predictions:np.ndarray)-> float:
+        """
+        @purpose:
+            Compute the cost function error
+        @params:
+            labels      - one-hot labels of the data, NxK
+            predictions - predictions of the data with Y matrix - mapped 0-1 NxK
+        @return:
+            Computed cross entropy Error - Soft-max regression
+        """
+        assert labels.shape == predictions.shape, f"Expected (NxK) matrices, got: {labels.shape}, {predictions.shape}"
+        N = labels.shape[0]  # Number of samples
+    
+        # Compute cross-entropy loss using vectorized operations
+        loss = -np.sum(labels * np.log(predictions)) / N
+        
+        return loss
 
 
 if __name__ == '__main__':
@@ -105,5 +174,5 @@ if __name__ == '__main__':
     if not args.directory:
         args.directory = input("Enter the directory path containing images: ")
 
-    model = LogisticRegressor()
+    model = SoftMaxRegressor()
     model.visualizeDataset(directory=args.directory)
