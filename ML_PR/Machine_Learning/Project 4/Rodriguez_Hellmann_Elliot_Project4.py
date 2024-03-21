@@ -169,16 +169,20 @@ class SoftMaxRegressor:
         Returns:
             np.ndarray: Gradient of the loss function with respect to the weights.
         """
-        N = scores.shape[0]  # Number of samples
-
         # Compute the gradient of the loss function
-        gradient = np.dot(designMatrix.T, (scores - labels)) / N
-
+        gradient = np.mean(designMatrix.T @ (scores - labels), axis=0)
+    
+        # Calculate the norm of the gradient
+        # gradient_norm = np.linalg.norm(gradient)
+        
+        # # If the gradient norm exceeds the maximum allowed norm, scale down the gradient
+        # if gradient_norm > 5000:
+        #     gradient *= 5000 / gradient_norm
         return gradient
 
     
     def fit(self, directory:str=None, batch_size:int=1,
-            epochs:int=10000, epsilon:float=1e-3, beta:float=0):
+            epochs:int=10000, epsilon:float=1e-3):
         """
         @purpose:
             Fit a model using gradient descent (mini batch)
@@ -190,52 +194,53 @@ class SoftMaxRegressor:
             batch_size - number of images to use in a batch for training
             beta - smoothing hyperparameter
         """
-        assert beta >= 0, f'{beta} < 0 not permissible'
         # create a mini_batch generator
         generator = self.generate_minibatch(directory=directory, batch_size=batch_size)
         batch_x, batch_t, epoch_flag = next(generator)
 
         num_samples, num_features = batch_x.shape
         num_classes = batch_t.shape[1]                        # one hot encoding shape
-        self.weights = np.ones((num_features, num_classes))  # Initialize weights to ones
+        self.weights = np.zeros((num_features, num_classes))  # Initialize weights to ones
         print(f'Init Weights: {self.weights.shape} * 0')
         self.loss.clear()                                     # calling this generator will clear the loss computed previously
         
-        while True:
-            # upper limit on the epochs
-            for epoch in range(epochs):
-                print(f'Working Epoch: {epoch}/{epochs}')
-                total_loss = 0
-                
-                # train through the whole batch before next epoch
-                while epoch_flag is not True:
-                    # make a prediction on the data
-                    probs = self.calcProbability(batch_x)
-                    # Compute gradient
-                    grad = self.gradient(scores=probs, labels=batch_t, designMatrix=batch_x)
-                    # # Update weights using gradient descent with L2 regularization
-                    # self.weights -= self.learn_rate * (grad + 2 * beta * self.weights)
-                    # # reduce learning rate
-                    # self.learn_rate *= 0.9
-                    # # print(self.weights)
-                    # # Compute loss
-                    # batch_loss = self.lossFunction(labels=batch_t, predictions=probs)
-                    # total_loss += batch_loss
-                    # # update the data
-                    # batch_x, batch_t, epoch_flag = next(generator)
-                
-                # Calculate average loss for the epoch
-                avg_loss = total_loss / num_samples
-                self.loss.append(avg_loss)
-                
-                # Print loss for every 100 epochs
-                if epoch % 100 == 0:
-                    print(f"Epoch {epoch}: Loss = {avg_loss}")
+        # upper limit on the epochs
+        for epoch in range(epochs):
+            print(f'Working Epoch: {epoch}/{epochs}')
+            total_loss = 0
+            
+            # train through the whole batch before next epoch
+            while epoch_flag is not True:
+                # calculate scores on the data
+                probs = self.calcProbability(batch_x)
+                # Compute gradient
+                grad = self.gradient(scores=probs, labels=batch_t, designMatrix=batch_x)
+                # Update weights using gradient descent with L2 regularization
+                self.weights -= self.learn_rate * grad
 
-                # Check for convergence
-                if len(self.loss) > 1 and abs(self.loss[-1] - self.loss[-2]) < epsilon:
-                    print(f"Minimum reached at epoch {epoch}. Stopping training.")
-                    break
+                # Compute loss
+                # batch_loss = self.cross_entropy_cost(output=probs, y_target=batch_t)
+                # total_loss += batch_loss
+                # update the data
+                batch_x, batch_t, epoch_flag = next(generator)
+                num_samples, num_features = batch_x.shape
+                num_classes = batch_t.shape[1]                        # one hot encoding shape
+            
+            # reduce learning rate
+            self.learn_rate *= 0.9                
+            # Calculate average loss for the epoch
+            avg_loss = total_loss / num_samples
+            self.loss.append(avg_loss)
+            
+            # Print loss for every 100 epochs
+            if epoch % 100 == 0:
+                print(f"Epoch {epoch}: Loss = {avg_loss}")
+
+            # Check for convergence
+            if len(self.loss) > 1 and abs(self.loss[-1] - self.loss[-2]) < epsilon:
+                print(f"Minimum reached at epoch {epoch}. Stopping training.")
+                break
+            
 
     def calcProbability(self, designMatrix:np.ndarray) -> np.ndarray:
         """
@@ -254,7 +259,8 @@ class SoftMaxRegressor:
 
     def softmax(self, input_vector):
         # Calculate the exponent of each element in the input vector
-        exponents = np.exp(input_vector)
+        copy = input_vector - np.max(input_vector)
+        exponents = np.exp(copy)
 
         # divide the exponent of each value by the sum of the exponents
         sum_of_exponents = np.sum(exponents)
@@ -262,23 +268,8 @@ class SoftMaxRegressor:
 
         return probabilities
 
-    def lossFunction(self, labels:np.ndarray, predictions:np.ndarray)-> float:
-        """
-        @purpose:
-            Compute the cost function error
-        @params:
-            labels      - one-hot labels of the data, NxK
-            predictions - predictions of the data with Y matrix - mapped 0-1 NxK
-        @return:
-            Computed cross entropy Error - Soft-max regression
-        """
-        assert labels.shape == predictions.shape, f"Expected (NxK) matrices, got: {labels.shape}, {predictions.shape}"
-        N = labels.shape[0]  # Number of samples
-    
-        # Compute cross-entropy loss using vectorized operations
-        loss = -np.sum(labels * np.log(predictions)) / N
-        
-        return loss
+    def cross_entropy_cost(self, y_target, output):
+        return np.mean(-np.sum(y_target * np.log(output), axis = 1))
 
 
 if __name__ == '__main__':
@@ -294,4 +285,4 @@ if __name__ == '__main__':
 
     model = SoftMaxRegressor()
     
-    model.fit(directory=args.directory, batch_size=args.batch_size, epochs=args.epochs, beta=0)
+    model.fit(directory=args.directory, batch_size=args.batch_size, epochs=args.epochs,)
