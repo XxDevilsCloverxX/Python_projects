@@ -200,7 +200,7 @@ class SoftMaxRegressor:
 
         _, num_features = batch_x.shape
         num_classes = batch_t.shape[1]                        # one hot encoding shape
-        self.weights = np.zeros((num_features, num_classes))  # Initialize weights to ones
+        self.weights = np.random.uniform(low=0, high=1, size=(num_features, num_classes))  # Initialize weights to ones
         print(f'Init Weights: {self.weights.shape} * 0')
         self.loss.clear()                                     # calling this generator will clear the loss computed previously
         
