@@ -198,17 +198,18 @@ class SoftMaxRegressor:
         generator = self.generate_minibatch(directory=directory, batch_size=batch_size)
         batch_x, batch_t, epoch_flag = next(generator)
 
-        num_samples, num_features = batch_x.shape
+        _, num_features = batch_x.shape
         num_classes = batch_t.shape[1]                        # one hot encoding shape
         self.weights = np.zeros((num_features, num_classes))  # Initialize weights to ones
         print(f'Init Weights: {self.weights.shape} * 0')
         self.loss.clear()                                     # calling this generator will clear the loss computed previously
         
+        epoch_loss = []
         # upper limit on the epochs
         for epoch in range(epochs):
             print(f'Working Epoch: {epoch}/{epochs}')
-            total_loss = 0
-            
+
+            batch_losses = []            
             # train through the whole batch before next epoch
             while epoch_flag is not True:
                 # calculate scores on the data
@@ -219,18 +220,18 @@ class SoftMaxRegressor:
                 self.weights -= self.learn_rate * grad
 
                 # Compute loss
-                # batch_loss = self.cross_entropy_cost(output=probs, y_target=batch_t)
-                # total_loss += batch_loss
+                batch_loss = self.cross_entropy_cost(scores=probs, y_targets=batch_t)
+                print(f'Batch Loss: {batch_loss}')
+                batch_losses.append(batch_loss) # add the loss from this batch
                 # update the data
                 batch_x, batch_t, epoch_flag = next(generator)
-                num_samples, num_features = batch_x.shape
-                num_classes = batch_t.shape[1]                        # one hot encoding shape
+
             
             # reduce learning rate
-            self.learn_rate *= 0.9                
+            self.learn_rate *= 0.9
             # Calculate average loss for the epoch
-            avg_loss = total_loss / num_samples
-            self.loss.append(avg_loss)
+            # avg_loss = total_loss / num_samples
+            # self.loss.append(avg_loss)
             
             # Print loss for every 100 epochs
             if epoch % 100 == 0:
@@ -268,9 +269,14 @@ class SoftMaxRegressor:
 
         return probabilities
 
-    def cross_entropy_cost(self, y_target, output):
-        return np.mean(-np.sum(y_target * np.log(output), axis = 1))
-
+    def cross_entropy_cost(self, y_targets, scores):
+        cost = 0
+        samples, class_count = y_targets.shape
+        # for every element
+        for row in range(samples):
+            print(y_targets * np.log(scores))
+            cost -= np.sum(y_targets * np.log(scores))
+        print(cost)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Logistic Regression model object test programs')
