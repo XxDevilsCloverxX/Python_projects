@@ -150,7 +150,15 @@ def SoftMargin_SVM(X:np.ndarray, t:np.ndarray, C:float, sigma:float=1.75, plot_e
         # Plot +1 and -1 hyperplanes
         plt.contour(xx, yy, Z, colors='k', levels=[-1, 0, 1], alpha=0.5, linestyles=[':', '-', '--'])
 
-        plt.legend()
+        # Get handles for legend with outlined markers
+        handles = [plt.Line2D([], [], color='black', marker='o', linestyle='None', markersize=10, markerfacecolor='none', label=f'Support Vectors: {len(X_sv)}'),
+                plt.Line2D([], [], color='black', marker='s', linestyle='None', markersize=10, markerfacecolor='none', label=f'Misclassified Vectors: {misclasses}'),
+                plt.Line2D([], [], color='black', linestyle=':', linewidth=2, label='d(x) = -1'),
+                plt.Line2D([], [], color='black', linestyle='-', linewidth=2, label='d(x) = 0'),
+                plt.Line2D([], [], color='black', linestyle='--', linewidth=2, label='d(x) = 1')]
+        # Add legend with handles and labels
+        plt.legend(handles=handles)
+
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.title(f'Soft Margin SVM Decision Surfaces with C={C}, sigma={sigma}')
@@ -215,7 +223,15 @@ def SkLearn_SVM(X:np.ndarray, t:np.ndarray, C:float, gamma:float=8/49, plot_en:b
         misclassified_points = X[index_misclasses]
         plt.scatter(misclassified_points[:, 0], misclassified_points[:, 1], marker='s', edgecolors='black', facecolors='none', s=150, label=f'Misclassified Vectors: {misclasses}')
 
-        plt.legend()
+        # Get handles for legend with outlined markers
+        handles = [plt.Line2D([], [], color='black', marker='o', linestyle='None', markersize=10, markerfacecolor='none', label=f'Support Vectors: {len(support_vectors)}'),
+                plt.Line2D([], [], color='black', marker='s', linestyle='None', markersize=10, markerfacecolor='none', label=f'Misclassified Vectors: {misclasses}'),
+                plt.Line2D([], [], color='black', linestyle=':', linewidth=2, label='d(x) = -1'),
+                plt.Line2D([], [], color='black', linestyle='-', linewidth=2, label='d(x) = 0'),
+                plt.Line2D([], [], color='black', linestyle='--', linewidth=2, label='d(x) = 1')]
+        # Add legend with handles and labels
+        plt.legend(handles=handles)
+
         plt.xlabel('x1')
         plt.ylabel('x2')
         plt.title(f'SkLearn SVM Decision Surfaces with C={C}, sigma={1.75}')
