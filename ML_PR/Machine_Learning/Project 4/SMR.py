@@ -96,6 +96,15 @@ class SoftMaxRegressor:
             })
         return df
     
+    @staticmethod
+    def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray):
+        cm = confusion_matrix(y_true, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot(cmap='Greens')
+        plt.title('Confusion Matrix of Classified Test Data')
+        plt.show()  # Explicitly show the plot
+
+
 if __name__ == '__main__':
 
     x = load_iris().data
@@ -129,3 +138,5 @@ if __name__ == '__main__':
     pred = smr.predict(X=x)
     correct = np.sum(pred == y)
     print(f'{correct} / {y.shape[0]} = {100* correct / y.shape[0]}% ')
+
+    smr.confusion_matrix(y, pred)
