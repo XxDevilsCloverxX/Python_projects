@@ -23,3 +23,5 @@ def accuracy(y_pred, y_test):
 
 acc = accuracy(pred, y_test)
 print(acc)
+
+clf.confusion_matrix(y_true=y_test, y_pred=pred)

@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 class LogisticRegressor:
 
@@ -86,4 +88,12 @@ class LogisticRegressor:
         scores = self.sigmoid(pred)
 
         labels = [0 if score < 0.5 else 1 for score in scores]
-        return labels
+        return np.array(labels)
+    
+    @staticmethod
+    def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray):
+        cm = confusion_matrix(y_true, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot(cmap='Greens')
+        plt.title('Confusion Matrix of Classified Test Data')
+        plt.show()  # Explicitly show the plot
