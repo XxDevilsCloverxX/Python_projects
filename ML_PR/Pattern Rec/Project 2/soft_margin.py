@@ -53,7 +53,7 @@ def main():
     # Seed the program for reproducibility
     np.random.seed(8)
     # Generate some data
-    X, t = generate_linearly_nonseparable_data(N=25)
+    X, t = generate_linearly_nonseparable_data(N=2)
 
     # visualize the generated data
     plt.figure(figsize=(5,4))
@@ -174,7 +174,7 @@ def main():
     print('Indices of support vectors = ', clf.support_)
     print('Support vectors = ', clf.support_vectors_)
     print('Number of support vectors for each class = ', clf.n_support_)
-    print('Coefficients of the support vector in the decision function = ', np.abs(clf.dual_coef_))
+    print('Lagrange Multipliers = ', np.abs(clf.dual_coef_))
 
     # get the support vectors
     support_vectors = sk_x[clf.support_]

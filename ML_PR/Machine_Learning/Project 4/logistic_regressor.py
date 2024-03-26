@@ -10,8 +10,6 @@ class LogisticRegressor:
         self.bias = None
         self.rate = rate
         self.reg = alpha
-        self.train_cost = []
-        self.valid_cost = []
     
     def _positive_sigmoid(self, x):
         """
@@ -48,10 +46,6 @@ class LogisticRegressor:
         """
         self.weights = None
         self.bias = None
-
-    def clear_costs(self):
-        self.train_cost.clear()
-        self.valid_cost.clear()
 
     def validation_evaluation(self,V:np.ndarray, y_v:np.ndarray):
         # compute the cost over the validation set
