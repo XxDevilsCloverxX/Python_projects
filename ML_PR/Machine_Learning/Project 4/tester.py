@@ -1,7 +1,6 @@
 from logistic_regressor import LogisticRegressor
 from sklearn.model_selection import train_test_split
 from sklearn import datasets
-import matplotlib.pyplot as plt
 import numpy as np
 
 bc = datasets.load_breast_cancer()
