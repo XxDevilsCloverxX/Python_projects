@@ -1,12 +1,10 @@
 import numpy as np
-import warnings
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import OneHotEncoder
-from scipy.special import softmax
-from sklearn.datasets import load_iris, load_breast_cancer, load_digits
+from sklearn.datasets import load_digits
 from sklearn.model_selection import KFold, train_test_split
 
 class SoftMaxRegressor:
@@ -58,7 +56,7 @@ class SoftMaxRegressor:
         grad = 1/N * (X.T @ (Y - P)) + 2* self.reg * self.weights
         return grad
     
-    def fit(self, X:np.ndarray, Y:np.ndarray, max_iter=1000):
+    def fit(self, X:np.ndarray, Y:np.ndarray, v_x:np.ndarray=None, v_y:np.ndarray=None, max_iter=1000) -> pd.DataFrame:
 
         Y_onehot = self.encoder.fit_transform(Y.reshape(-1,1))
         # initialize the weights
@@ -68,7 +66,8 @@ class SoftMaxRegressor:
 
         grad_list = []
         weights_list = []
-        loss_list= []
+        train_loss= []
+        val_loss =[]
         steps = []
         for step in range(max_iter):
             steps.append(step)
@@ -80,7 +79,12 @@ class SoftMaxRegressor:
             weights_list.append(self.weights)
             
             loss = 0#self.calcLoss(X, Y_onehot)
-            loss_list.append(loss)
+            train_loss.append(loss)
+
+            # compute validation loss
+            if v_x is not None and v_y is not None:
+                v_loss = 0#
+                val_loss.append(v_loss)
 
             rate *= .995
 
@@ -91,12 +95,17 @@ class SoftMaxRegressor:
                 print(f'Early convergence @ step {step}')
                 break
 
+        if v_x is None and v_y is None:
+            val_loss = np.ones_like(train_loss)
+
         df = pd.DataFrame({
                 'epoch': steps,
-                'loss': loss_list,
+                'train_loss': train_loss,
+                'validation_loss': val_loss,
                 'weights': weights_list,
                 'gradients': grad_list
             })
+        
         return df
 
     @staticmethod
@@ -132,16 +141,18 @@ def k_fold_cross_validation(X:np.ndarray, y:np.ndarray, k, shuffle=True):
 
 def trainerplot(df: pd.DataFrame):
     epochs = df['epoch']
-    loss = df['loss']
-
+    train_loss = df['train_loss']
+    validation_loss = df['validation_loss']
+   
     # Plot loss vs epochs
     plt.figure(figsize=(8, 6))
     plt.subplot(2, 2, 1)
     plt.title('Loss vs Epochs')
-    plt.plot(epochs, loss, label='Loss')
-
+    plt.plot(epochs, train_loss, label='Training Loss')
+    plt.plot(epochs, validation_loss, label='Validation Loss')
+    plt.legend()
     # Get column names excluding 'epoch' and 'loss'
-    columns_to_plot = [col for col in df.columns if col not in ['epoch', 'loss']]
+    columns_to_plot = [col for col in df.columns if col not in ['epoch', 'train_loss', 'validation_loss']]
 
     # Plot ||W|| and ||G|| vs epochs for each column
     for i, col in enumerate(columns_to_plot, start=2):
