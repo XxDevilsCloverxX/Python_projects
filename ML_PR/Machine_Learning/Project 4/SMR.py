@@ -1,11 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.datasets import load_digits
-from sklearn.model_selection import KFold, train_test_split
 
 class SoftMaxRegressor:
 
@@ -21,6 +18,7 @@ class SoftMaxRegressor:
         exp_x_shifted = np.exp(x - x_max)
         return exp_x_shifted / np.sum(exp_x_shifted, axis=1).reshape(-1,1)
 
+
     def reset_training(self):
         """
         clear the weights saved to reinitialize training
@@ -32,19 +30,17 @@ class SoftMaxRegressor:
         P = self.softmax(Z)
         return np.array(np.argmax(P, axis=1)).ravel()   # idk why, but numpy acts goofy without this @ confusion matrix
 
-    # def calcLoss(self, X:np.ndarray, Y:np.ndarray):
-    #     """
-    #     @params:
-    #         X - Feature Matrix
-    #         Y - True Labels One - Hot Encoded
-    #     """
-    #     if self.weights is None:
-    #         warnings.warn('Attempting to calculate loss without a weight matrix... abandoning')
-    #         return None
-    #     Z = -X @ self.weights
-    #     N = X.shape[0]
-    #     loss = 1/N * (np.trace(X @ self.weights @ Y.T) + np.sum(np.log(np.sum(np.exp(Z), axis=1))))
-    #     return loss
+    def calcLoss(self, X:np.ndarray, Y:np.ndarray):
+        if self.weights is None:
+            print('Attempting to calculate loss without a weight matrix... abandoning')
+            return None
+    
+        Z = -X @ self.weights
+        exp_Z = np.exp(Z - np.max(Z, axis=1).reshape(-1, 1))  # Apply numerical stability trick
+        N = X.shape[0]
+        loss = 1/N * (np.trace(X @ self.weights @ Y.T) + np.sum(np.log(np.sum(exp_Z, axis=1))))
+        return loss
+
 
     def gradient(self, X:np.ndarray, Y:np.ndarray):
         """
@@ -78,12 +74,13 @@ class SoftMaxRegressor:
             self.weights = self.weights - rate * grad
             weights_list.append(self.weights)
             
-            loss = 0#self.calcLoss(X, Y_onehot)
+            
+            loss = self.calcLoss(X, Y_onehot)  # Compute the loss
             train_loss.append(loss)
 
             # compute validation loss
             if v_x is not None and v_y is not None:
-                v_loss = 0#
+                v_loss = self.calcLoss(v_x, self.encoder.transform(v_y.reshape(-1,1)).toarray())
                 val_loss.append(v_loss)
 
             rate *= .995
@@ -108,64 +105,6 @@ class SoftMaxRegressor:
         
         return df
 
-    @staticmethod
-    def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray):
-        cm = confusion_matrix(y_true, y_pred)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-        disp.plot(cmap='Greens')
-        plt.title('Confusion Matrix of Classified Test Data')
-        plt.show()  # Explicitly show the plot
-
-
-def k_fold_cross_validation(X:np.ndarray, y:np.ndarray, k, shuffle=True):
-    # Shuffle dataset once if required
-    if shuffle:
-        indices = np.random.choice(X.shape[0], size=X.shape[0], replace=False)
-        shuffled_x = X[indices]
-        shuffled_y = y[indices].reshape(-1,1)
-
-    # join the dataset features and labels
-    dataset = np.hstack((shuffled_x, shuffled_y))
-    # Initialize KFold
-    kf = KFold(n_splits=k)
-
-    # Split dataset into train, validate, and test sets for each fold
-    for train_idx, test_idx in kf.split(dataset):
-        train_set = dataset[train_idx]
-        test_set = dataset[test_idx]
-
-        # Split the training set into train and validate sets
-        train_set, validate_set = train_test_split(train_set, test_size=0.1, random_state=8)  # Adjust validation size as needed
-
-        yield train_set, validate_set, test_set
-
-def trainerplot(df: pd.DataFrame):
-    epochs = df['epoch']
-    train_loss = df['train_loss']
-    validation_loss = df['validation_loss']
-   
-    # Plot loss vs epochs
-    plt.figure(figsize=(8, 6))
-    plt.subplot(2, 2, 1)
-    plt.title('Loss vs Epochs')
-    plt.plot(epochs, train_loss, label='Training Loss')
-    plt.plot(epochs, validation_loss, label='Validation Loss')
-    plt.legend()
-    # Get column names excluding 'epoch' and 'loss'
-    columns_to_plot = [col for col in df.columns if col not in ['epoch', 'train_loss', 'validation_loss']]
-
-    # Plot ||W|| and ||G|| vs epochs for each column
-    for i, col in enumerate(columns_to_plot, start=2):
-        plt.subplot(2, 2, i)
-        plt.title(f'||{col}|| vs Epochs')
-        values = np.linalg.norm(np.array(df[col].to_list()), axis=1)
-        for j in range(values.shape[1]):
-            plt.plot(epochs, values[:, j], label=f'||{col}||: C={j+1}')
-        plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
 if __name__ == '__main__':
 
     x = load_digits().data
@@ -173,56 +112,57 @@ if __name__ == '__main__':
 
     smr = SoftMaxRegressor(rate=1)  # initialize the regressor with hyperparams
 
-    # K-fold cross-validation
-    k = 3
-    folds = k_fold_cross_validation(x, y, k)
+    # test_acc = []
+    # for k, (train_set, val_set, test_set) in enumerate(folds):
+    #     print(f'Fold {k+1}:')
+    #     print('Train set:', train_set.shape[0])
+    #     print('Validation set', val_set.shape[0])
+    #     print('Test set:', test_set.shape[0])
 
-    test_acc = []
-    for k, (train_set, val_set, test_set) in enumerate(folds):
-        print(f'Fold {k+1}:')
-        print('Train set:', train_set.shape[0])
-        print('Validation set', val_set.shape[0])
-        print('Test set:', test_set.shape[0])
-
-        # separate into x, label pairs
-        x_train = train_set[:, :-1]
-        y_train = train_set[:, -1]
+    #     # separate into x, label pairs
+    #     x_train = train_set[:, :-1]
+    #     y_train = train_set[:, -1]
         
-        x_val = val_set[:, :-1]
-        y_val = val_set[:, -1]
+    #     x_val = val_set[:, :-1]
+    #     y_val = val_set[:, -1]
 
-        x_test = test_set[:, :-1]
-        y_test = test_set[:, -1]
+    #     x_test = test_set[:, :-1]
+    #     y_test = test_set[:, -1]
 
-        # Flatten the labels
-        y_train = y_train.flatten()
-        y_val = y_val.flatten()
-        y_test = y_test.flatten()
+    #     # Flatten the labels
+    #     y_train = y_train.flatten()
+    #     y_val = y_val.flatten()
+    #     y_test = y_test.flatten()
 
-        training_eval = smr.fit(x_train, y_train)
-        trainerplot(training_eval)
+    #     training_eval = smr.fit(x_train, y_train, v_x=x_val, v_y=y_val)
+    #     trainerplot(training_eval)
 
-        pred = smr.predict(X=x_test)
-        correct = np.sum(pred == y_test)
-        test_acc_k = correct / y_test.shape[0]
-        test_acc.append(test_acc_k)
-        print(f'{correct} / {y_test.shape[0]} = {100* test_acc_k}% ')
-        smr.confusion_matrix(y_true=y_test, y_pred=pred)
-        # clear the learned weights
-        smr.reset_training()
+    #     pred = smr.predict(X=x_test)
+    #     correct = np.sum(pred == y_test)
+    #     test_acc_k = correct / y_test.shape[0]
+    #     test_acc.append(test_acc_k)
+    #     print(f'{correct} / {y_test.shape[0]} = {100* test_acc_k}% ')
+    #     smr.confusion_matrix(y_true=y_test, y_pred=pred)
+    #     # clear the learned weights
+    #     smr.reset_training()
 
-    #K-fold results :
-    avg_test = np.mean(test_acc)
-    print(f'Expected test accuracy: {avg_test}\n')
+    # #K-fold results :
+    # avg_test = np.mean(test_acc)
+    # print(f'Expected test accuracy: {avg_test}\n')
 
-    # train a final model over all the data:
-    smr.reset_training()
-    training_eval = smr.fit(x, y)
-    trainerplot(training_eval)
+    # # train a final model over all the data:
+    # smr.reset_training()
+    # training_eval = smr.fit(x, y)
+    # trainerplot(training_eval)
     
-    # Evaluate training accuracy
-    pred = smr.predict(X=x)
-    correct = np.sum(pred == y)
-    test_acc_k = correct / y.shape[0]
-    print(f'{correct} / {y.shape[0]} = {100* test_acc_k}% Training Accuracy')
-    smr.confusion_matrix(y_true=y, y_pred=pred)
+    # # Evaluate training accuracy
+    # pred = smr.predict(X=x)
+    # correct = np.sum(pred == y)
+    # test_acc_k = correct / y.shape[0]
+    # print(f'{correct} / {y.shape[0]} = {100* test_acc_k}% Training Accuracy')
+    # smr.confusion_matrix(y_true=y, y_pred=pred)
+
+    # # Write predictions to an Excel file
+    # output_file = 'predictions.xlsx'
+    # output_file = write_predictions_to_excel(pred, y, output_file)
+    # print(f'Predictions written to {output_file}')
