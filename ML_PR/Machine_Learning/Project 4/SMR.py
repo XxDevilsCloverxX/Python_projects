@@ -1,25 +1,26 @@
 import numpy as np
-import pandas as pd
-import cv2 
-
-from ML_functions import *
-from sklearn.preprocessing import OneHotEncoder
+import seaborn as sns
+import argparse
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from sklearn.metrics import confusion_matrix
 from keras.datasets.mnist import load_data
 
 class SoftMaxRegressor:
 
-    def __init__(self, rate:float=1, alpha:float=0) -> None:
-        # params of the LR, weights will have bias included
-        self.weights = None
-        self.rate = rate
+    def __init__(self, alpha = 0, classes=2, init_weights:str=None) -> None:
+        self.weights = np.load(init_weights, allow_pickle=True) if init_weights is not None else None
         self.reg = alpha
-        self.encoder = OneHotEncoder()
+        self.num_classes = classes
 
-    def softmax(self, x:np.ndarray):
-        x_max = np.amax(x, axis=1).reshape(-1,1)
-        exp_x_shifted = np.exp(x - x_max)
+    def softmax(self, X:np.ndarray):
+        """
+        Numerically stable softmax function
+        """
+        x_max = np.amax(X, axis=1).reshape(-1,1)
+        exp_x_shifted = np.exp(X - x_max)
         return exp_x_shifted / np.sum(exp_x_shifted, axis=1).reshape(-1,1)
-
+    
     def reset_training(self):
         """
         clear the weights saved to reinitialize training
@@ -27,134 +28,164 @@ class SoftMaxRegressor:
         self.weights = None
 
     def predict(self, X:np.ndarray):
+        if self.weights is None:
+            print('Cannot Predict without weights, please call fit method')
+            return
         Z = -X @ self.weights
         P = self.softmax(Z)
         return np.array(np.argmax(P, axis=1)).ravel()   # idk why, but numpy acts goofy without this @ confusion matrix
 
-    def calcLoss(self, X:np.ndarray, Y:np.ndarray):
-        if self.weights is None:
-            print('Attempting to calculate loss without a weight matrix... abandoning')
-            return None
-    
-        Z = -X @ self.weights
-        exp_Z = np.exp(Z - np.max(Z, axis=1).reshape(-1, 1))  # Apply numerical stability trick
-        N = X.shape[0]
-        loss = 1/N * (np.trace(X @ self.weights @ Y.T) + np.sum(np.log(np.sum(exp_Z, axis=1))))
-        return loss
+    def one_hot_encode(self, labels):
+        """
+        Encode a 1-D array of labels to one-hot encoded Y
+        """
+        one_hot_matrix = np.eye(self.num_classes)[labels]
+        return one_hot_matrix
 
+    def fit(self, X:np.ndarray, y:np.ndarray, rate=.01):
+        # encode y into a one-hot matrix
+        Y_onehot = self.one_hot_encode(y)
+        # initialize weights -> L x K
+        if self.weights is None:
+            self.weights = np.zeros((X.shape[1], Y_onehot.shape[1]))
+
+        # compute the gradient of the cross-entropy loss
+        grad = self.gradient(X, Y_onehot)
+        # update the weights
+        self.weights -= rate * grad
+        # compute the new loss
+        loss = self.cross_entropy_loss(y_true=Y_onehot, X=X)
+        # return the computed gradient norms + loss
+        return np.linalg.norm(grad, axis=0), loss
+    
     def gradient(self, X:np.ndarray, Y:np.ndarray):
         """
         Y - One hot encoded
         """
+        # compute the scores
         Z = -X @ self.weights
         P = self.softmax(Z)
         N = X.shape[0]
         grad = 1/N * (X.T @ (Y - P)) + 2* self.reg * self.weights
         return grad
     
-    def fit(self, X:np.ndarray, Y:np.ndarray, v_x:np.ndarray=None, v_y:np.ndarray=None, max_iter=1000) -> pd.DataFrame:
+    def cross_entropy_loss(self, y_true:np.ndarray, X:np.ndarray, eps:float=1e-15):
+        # compute the scores
+        Z = -X @ self.weights
+        y_pred = self.softmax(Z)
+        # Clip predicted probabilities to prevent log(0) which is undefined
+        y_pred = np.clip(y_pred, eps, 1 - eps)
+        # Compute the cross-entropy loss
+        loss = -np.sum(y_true * np.log(y_pred)) / len(y_true)
+        return loss
 
-        Y_onehot = self.encoder.fit_transform(Y.reshape(-1,1))
-        # initialize the weights
-        if self.weights is None:
-            self.weights = np.zeros((X.shape[1], Y_onehot.shape[1]))
-            rate = self.rate
-
-        grad_list = []
-        weights_list = []
-        train_loss= []
-        val_loss =[]
-        steps = []
-        for step in range(max_iter):
-            steps.append(step)
-
-            grad = self.gradient(X, Y_onehot)
-            grad_list.append(grad)
-            
-            self.weights = self.weights - rate * grad
-            weights_list.append(self.weights)
-            
-            
-            loss = self.calcLoss(X, Y_onehot)  # Compute the loss
-            train_loss.append(loss)
-
-            # compute validation loss
-            if v_x is not None and v_y is not None:
-                v_loss = self.calcLoss(v_x, self.encoder.transform(v_y.reshape(-1,1)).toarray())
-                val_loss.append(v_loss)
-
-            rate *= .995
-
-            # compute the norm of the gradients to see if all of them have reached some minimum
-            grad_norms = np.linalg.norm(grad, axis=0)
-            converge = grad_norms < 1e-1
-            if np.all(converge):
-                print(f'Early convergence @ step {step}')
-                break
-
-        if v_x is None and v_y is None:
-            val_loss = np.ones_like(train_loss)
-
-        df = pd.DataFrame({
-                'epoch': steps,
-                'train_loss': train_loss,
-                'validation_loss': val_loss,
-                'weights': weights_list,
-                'gradients': grad_list
-            })
-        
-        return df
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="SMR Debug")
+    parser.add_argument("-w","--weights", default=None, type=str, help="Path to the saved weights.")
+    parser.add_argument("-s","--save", default='saved_weights', type=str, help="Path to save weights.")
+    args = parser.parse_args()
 
+    # open the mnist dataset
     (x_train, y_train), (x_test, y_test) = load_data()
 
-    size= 10000
-    test_s = 1000
-    x_train = x_train.reshape(x_train.shape[0], -1)[:size, :]
-    x_test = x_test.reshape(x_test.shape[0], -1)[:test_s, :]
+    # image pre-proc happens here
 
-    # Normalize the pixel values
-    x_train = x_train.astype('float32') / 255.0
-    x_test = x_test.astype('float32') / 255.0
+    # flatten the images
+    x_train = x_train.reshape(x_train.shape[0],-1)
+    x_test  = x_test.reshape(x_test.shape[0],-1)
 
-    smr = SoftMaxRegressor(rate=1)  # initialize the regressor with hyperparams
+    x_train = x_train / 255
+    x_test = x_test / 255
 
-    test_acc = []
+    # initialize the SoftMaxClassifier + regression
+    smr = SoftMaxRegressor(alpha=0, classes=len(np.unique(y_train)), init_weights=args.weights)
 
-    print('Train set:', x_train.shape)
-    print('Test set:', x_test.shape)
+    # Create a tf.data.Dataset to generate minibatches
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
 
-    training_eval = smr.fit(x_train, y_train[:size])
-    trainerplot(training_eval)
+    # Define a batch size
+    batch_size = 100
 
-    pred = smr.predict(X=x_test)
-    correct = np.sum(pred == y_test[:test_s])
-    test_acc_k = correct / y_test[:test_s].shape[0]
-    test_acc.append(test_acc_k)
-    print(f'{correct} / {y_test[:test_s].shape[0]} = {100* test_acc_k}% ')
-    # smr.confusion_matrix(y_true=y_test, y_pred=pred)
-    # clear the learned weights
-    # smr.reset_training()
+    # epoch limiter
+    epochs = 10
 
-    #K-fold results :
-    avg_test = np.mean(test_acc)
-    print(f'Expected test accuracy: {avg_test}\n')
+    # train if not using old weights
+    if args.weights is None:
+        # Iterate over mini-batches
+        epoch_loss = []
+        epoch_grad_norms = []
+        for i in range(epochs):
+            # telemetry
+            print(f'Epoch {i+1}...')
+            # shuffle the order of the data to be presented
+            train_miniset = train_dataset.shuffle(buffer_size=len(x_train)).batch(batch_size)
 
-    # # train a final model over all the data:
-    # smr.reset_training()
-    # training_eval = smr.fit(x, y)
-    # trainerplot(training_eval)
-    
-    # Evaluate training accuracy
-    print(x_test.shape, smr.weights.shape)
-    pred = smr.predict(X=x_test)
-    correct = np.sum(pred == y_test[:test_s])
-    test_acc_k = correct / y_test[:test_s].shape[0]
-    print(f'{correct} / {y_test[:test_s].shape[0]} = {100* test_acc_k}% Training Accuracy')
-    # smr.confusion_matrix(y_true=y, y_pred=pred)
+            batch_loss = []
+            for batch in train_miniset:
+                X_batch, y_batch = batch
+                X_batch = X_batch.numpy()
+                y_batch = y_batch.numpy()
+                
+                grad_norms, loss = smr.fit(X=X_batch, y=y_batch)
+                batch_loss.append(loss)
+            epoch_loss.append(np.mean(batch_loss))  # gets average loss for epoch
+            epoch_grad_norms.append(grad_norms)
+            if np.all(grad_norms < 1e-1):
+                print(f'Convergence found @ epoch {i+1}')
+        
+        epoch_grad_norms = np.array(epoch_grad_norms)
+        # save the weights
+        np.save(args.save,smr.weights)
 
-    # Write predictions to an Excel file
-    output_file = 'predictions.xlsx'
-    output_file = write_predictions_to_excel(pred, y_test[:test_s], output_file)
-    print(f'Predictions written to {output_file}')
+        x = np.arange(len(epoch_loss))
+        plt.figure(figsize=(8,6))
+        plt.plot(x, epoch_loss)
+        for class_k in range(epoch_grad_norms.shape[1]):
+            plt.plot(x, epoch_grad_norms[:, class_k])
+        plt.show()
+
+        # show training results:
+        train_preds = []
+        train_miniset = train_dataset.batch(batch_size)
+        for batch in train_miniset:
+            X_batch, y_batch = batch
+            X_batch = X_batch.numpy()
+            train_preds.extend(smr.predict(X_batch))
+                
+        cm = confusion_matrix(y_train, train_preds, labels=np.unique(y_train))
+
+        # Plot the confusion matrix
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", cbar=False)
+        plt.xlabel("Predicted Labels")
+        plt.ylabel("True Labels")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+        # computing the accuracy with the confusion matrix
+        accuracy = np.sum(np.diag(cm)) / np.sum(cm)
+        print(f'Train Accuracy: {accuracy}')
+
+
+    # compute testing results:
+    test_preds = []
+    test_miniset = test_dataset.batch(batch_size)
+    for batch in test_miniset:
+        X_batch, y_batch = batch
+        X_batch = X_batch.numpy()
+        test_preds.extend(smr.predict(X_batch))
+            
+    cm = confusion_matrix(y_test, test_preds, labels=np.unique(y_test))
+    # Plot the confusion matrix
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", cbar=False)
+    plt.xlabel("Predicted Labels")
+    plt.ylabel("True Labels")
+    plt.title("Confusion Matrix")
+    plt.show()
+
+    # computing the accuracy with the confusion matrix
+    accuracy = np.sum(np.diag(cm)) / np.sum(cm)
+    print(f'Test Accuracy: {accuracy}')
