@@ -31,32 +31,33 @@ def imgPreProc(img_Filename:str) -> np.ndarray:
     flattened = normalized_img.flatten()
     return flattened
 
-def write_predictions_to_excel(predictions: np.ndarray, labels: np.ndarray, output_file: str) -> str:
+def write_predictions_to_excel(predictions: np.ndarray, y_true:np.ndarray, output_file: str) -> str:
     """
     This function takes a list of predictions and true labels, and creates a confusion matrix
     From here, it will write to excel sheets:
         Sheet 1: Filename / Index | Predicted Label 
         Sheet 2: Label | True Count | Predicted Count | Correct Count
     """
+    # compute the confusion matrix
+    cm = confusion_matrix(y_true=y_true, y_pred=predictions)
+    correct = np.diag(cm)
+
     # Convert labels array to integers
-    labels = labels.astype(int)
+    labels = y_true.astype(int)
     predictions = predictions.astype(int)
     # Create a DataFrame to store predictions and labels
     df = pd.DataFrame({'image_filename': range(len(predictions)), 'label': predictions})
 
-    # Write the DataFrame to an Excel file
-    writer = pd.ExcelWriter(output_file, engine='xlsxwriter')
-    df.to_excel(writer, index=False, sheet_name='Predictions')
+    # Write the DataFrame to an Excel file using openpyxl
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Predictions')
 
-    # Calculate and append the count of each label
-    label_counts = np.bincount(labels)
-    pred_counts = np.bincount(predictions)
-    label_df = pd.DataFrame({'Label': range(len(label_counts)), 'True Count': label_counts, 'Predicted Count': pred_counts})
+        # Calculate and append the count of each label
+        label_counts = np.bincount(labels)
+        pred_counts = np.bincount(predictions)
+        label_df = pd.DataFrame({'Label': range(len(label_counts)), 'True Count': label_counts, 'Predicted Count': pred_counts, 'Correct Predictions': correct})
 
-    label_df.to_excel(writer, index=False, sheet_name='Label Counts')
-
-    # Save the Excel file
-    writer._save()
+        label_df.to_excel(writer, index=False, sheet_name='Label Counts')
 
     # Get the absolute path of the file
     output_file = os.path.abspath(output_file)

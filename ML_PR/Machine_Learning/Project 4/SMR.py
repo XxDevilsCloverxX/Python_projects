@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
+import cv2 
 
+from ML_functions import *
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.datasets import load_digits
+from keras.datasets.mnist import load_data
 
 class SoftMaxRegressor:
 
@@ -17,7 +19,6 @@ class SoftMaxRegressor:
         x_max = np.amax(x, axis=1).reshape(-1,1)
         exp_x_shifted = np.exp(x - x_max)
         return exp_x_shifted / np.sum(exp_x_shifted, axis=1).reshape(-1,1)
-
 
     def reset_training(self):
         """
@@ -40,7 +41,6 @@ class SoftMaxRegressor:
         N = X.shape[0]
         loss = 1/N * (np.trace(X @ self.weights @ Y.T) + np.sum(np.log(np.sum(exp_Z, axis=1))))
         return loss
-
 
     def gradient(self, X:np.ndarray, Y:np.ndarray):
         """
@@ -107,62 +107,54 @@ class SoftMaxRegressor:
 
 if __name__ == '__main__':
 
-    x = load_digits().data
-    y = load_digits().target
+    (x_train, y_train), (x_test, y_test) = load_data()
+
+    size= 10000
+    test_s = 1000
+    x_train = x_train.reshape(x_train.shape[0], -1)[:size, :]
+    x_test = x_test.reshape(x_test.shape[0], -1)[:test_s, :]
+
+    # Normalize the pixel values
+    x_train = x_train.astype('float32') / 255.0
+    x_test = x_test.astype('float32') / 255.0
 
     smr = SoftMaxRegressor(rate=1)  # initialize the regressor with hyperparams
 
-    # test_acc = []
-    # for k, (train_set, val_set, test_set) in enumerate(folds):
-    #     print(f'Fold {k+1}:')
-    #     print('Train set:', train_set.shape[0])
-    #     print('Validation set', val_set.shape[0])
-    #     print('Test set:', test_set.shape[0])
+    test_acc = []
 
-    #     # separate into x, label pairs
-    #     x_train = train_set[:, :-1]
-    #     y_train = train_set[:, -1]
-        
-    #     x_val = val_set[:, :-1]
-    #     y_val = val_set[:, -1]
+    print('Train set:', x_train.shape)
+    print('Test set:', x_test.shape)
 
-    #     x_test = test_set[:, :-1]
-    #     y_test = test_set[:, -1]
+    training_eval = smr.fit(x_train, y_train[:size])
+    trainerplot(training_eval)
 
-    #     # Flatten the labels
-    #     y_train = y_train.flatten()
-    #     y_val = y_val.flatten()
-    #     y_test = y_test.flatten()
+    pred = smr.predict(X=x_test)
+    correct = np.sum(pred == y_test[:test_s])
+    test_acc_k = correct / y_test[:test_s].shape[0]
+    test_acc.append(test_acc_k)
+    print(f'{correct} / {y_test[:test_s].shape[0]} = {100* test_acc_k}% ')
+    # smr.confusion_matrix(y_true=y_test, y_pred=pred)
+    # clear the learned weights
+    # smr.reset_training()
 
-    #     training_eval = smr.fit(x_train, y_train, v_x=x_val, v_y=y_val)
-    #     trainerplot(training_eval)
-
-    #     pred = smr.predict(X=x_test)
-    #     correct = np.sum(pred == y_test)
-    #     test_acc_k = correct / y_test.shape[0]
-    #     test_acc.append(test_acc_k)
-    #     print(f'{correct} / {y_test.shape[0]} = {100* test_acc_k}% ')
-    #     smr.confusion_matrix(y_true=y_test, y_pred=pred)
-    #     # clear the learned weights
-    #     smr.reset_training()
-
-    # #K-fold results :
-    # avg_test = np.mean(test_acc)
-    # print(f'Expected test accuracy: {avg_test}\n')
+    #K-fold results :
+    avg_test = np.mean(test_acc)
+    print(f'Expected test accuracy: {avg_test}\n')
 
     # # train a final model over all the data:
     # smr.reset_training()
     # training_eval = smr.fit(x, y)
     # trainerplot(training_eval)
     
-    # # Evaluate training accuracy
-    # pred = smr.predict(X=x)
-    # correct = np.sum(pred == y)
-    # test_acc_k = correct / y.shape[0]
-    # print(f'{correct} / {y.shape[0]} = {100* test_acc_k}% Training Accuracy')
+    # Evaluate training accuracy
+    print(x_test.shape, smr.weights.shape)
+    pred = smr.predict(X=x_test)
+    correct = np.sum(pred == y_test[:test_s])
+    test_acc_k = correct / y_test[:test_s].shape[0]
+    print(f'{correct} / {y_test[:test_s].shape[0]} = {100* test_acc_k}% Training Accuracy')
     # smr.confusion_matrix(y_true=y, y_pred=pred)
 
-    # # Write predictions to an Excel file
-    # output_file = 'predictions.xlsx'
-    # output_file = write_predictions_to_excel(pred, y, output_file)
-    # print(f'Predictions written to {output_file}')
+    # Write predictions to an Excel file
+    output_file = 'predictions.xlsx'
+    output_file = write_predictions_to_excel(pred, y_test[:test_s], output_file)
+    print(f'Predictions written to {output_file}')
