@@ -37,7 +37,7 @@ if __name__ == '__main__':
     batch_size = 100
 
     # epoch limiter
-    epochs = 10
+    epochs = 1000
 
     # train if not using old weights
     if args.weights is None:
@@ -62,6 +62,7 @@ if __name__ == '__main__':
             epoch_grad_norms.append(grad_norms)
             if np.all(grad_norms < 1e-1):
                 print(f'Convergence found @ epoch {i+1}')
+                break
         
         epoch_grad_norms = np.array(epoch_grad_norms)
         # save the weights

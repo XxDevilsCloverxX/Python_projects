@@ -4,6 +4,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix
+from keras.utils import image_dataset_from_directory
+
 from ML_functions import * 
 
 if __name__ == '__main__':
@@ -11,19 +13,52 @@ if __name__ == '__main__':
     parser.add_argument("-w","--weights", default=None, type=str, help="Path to the saved weights.")
     parser.add_argument("-s","--save", default='MNIST_weights', type=str, help="Path to save weights.")
     parser.add_argument("-o","--output", default='predictions_sheets_MNIST.xlsx', type=str, help="Path to save excel file.")
+    parser.add_argument('-d', '--directory', required=True, type=str, help='Parent Directory to the images')
+
     args = parser.parse_args()
 
-    # open the mnist dataset
-    (x_train, y_train), (x_test, y_test) = load_data()
+    # Open the worms dataset with validation split
+    dataset_train, dataset_val = image_dataset_from_directory(args.directory,
+                                                 image_size=(28, 28),
+                                                 color_mode='grayscale',
+                                                 validation_split=0.25,
+                                                 seed=69,
+                                                 subset="both")
 
-    # image pre-proc happens here
+    # Perform batching for training and validation sets
+    for batch in dataset_train:
+        x_batch, y_batch = batch
+        x_batch = x_batch.numpy()
+        y_batch = y_batch.numpy()
+        print("Training Batch shapes:", x_batch.shape, y_batch.shape)
+        print("Training Labels:", y_batch)
 
-    # flatten the images
-    x_train = x_train.reshape(x_train.shape[0],-1)
-    x_test  = x_test.reshape(x_test.shape[0],-1)
+        # Visualize an example image and label
+        example_image = x_batch[0]
+        example_label = y_batch[0]
 
-    x_train = x_train / 255
-    x_test = x_test / 255
+        plt.imshow(example_image, cmap='gray')  # Assuming grayscale images
+        plt.title(f'Training Label: {example_label}')
+        plt.show()
+        break  # Show only the first example for demonstration purposes
+
+    for batch in dataset_val:
+        x_batch_val, y_batch_val = batch
+        x_batch_val = x_batch_val.numpy()
+        y_batch_val = y_batch_val.numpy()
+        print("Validation Batch shapes:", x_batch_val.shape, y_batch_val.shape)
+        print("Validation Labels:", y_batch_val)
+
+        # Visualize an example image and label
+        example_image_val = x_batch_val[0]
+        example_label_val = y_batch_val[0]
+
+        plt.imshow(example_image_val, cmap='gray')  # Assuming grayscale images
+        plt.title(f'Validation Label: {example_label_val}')
+        plt.show()
+        break  # Show only the first example for demonstration purposes
+
+    exit()
 
     # initialize the SoftMaxClassifier + regression
     smr = SoftMaxRegressor(alpha=0, classes=len(np.unique(y_train)), init_weights=args.weights)
