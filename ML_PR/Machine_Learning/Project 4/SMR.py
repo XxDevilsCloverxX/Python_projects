@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix
 from keras.datasets.mnist import load_data
+from ML_functions import *
 
 class SoftMaxRegressor:
 
@@ -84,6 +85,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SMR Debug")
     parser.add_argument("-w","--weights", default=None, type=str, help="Path to the saved weights.")
     parser.add_argument("-s","--save", default='saved_weights', type=str, help="Path to save weights.")
+    parser.add_argument("-o","--output", default='predictions_sheets.xlsx', type=str, help="Path to save excel file.")
     args = parser.parse_args()
 
     # open the mnist dataset
@@ -157,7 +159,7 @@ if __name__ == '__main__':
         cm = confusion_matrix(y_train, train_preds, labels=np.unique(y_train))
 
         # Plot the confusion matrix
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(8, 6))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", cbar=False)
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
@@ -176,10 +178,11 @@ if __name__ == '__main__':
         X_batch, y_batch = batch
         X_batch = X_batch.numpy()
         test_preds.extend(smr.predict(X_batch))
-            
+    test_preds = np.array(test_preds)
+
     cm = confusion_matrix(y_test, test_preds, labels=np.unique(y_test))
     # Plot the confusion matrix
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", cbar=False)
     plt.xlabel("Predicted Labels")
     plt.ylabel("True Labels")
@@ -189,3 +192,10 @@ if __name__ == '__main__':
     # computing the accuracy with the confusion matrix
     accuracy = np.sum(np.diag(cm)) / np.sum(cm)
     print(f'Test Accuracy: {accuracy}')
+
+    # write predictions to an excel file
+    if not args.output.endswith('.xlsx'):
+        args.output += '.xlsx'
+
+    path = write_predictions_to_excel(y_true=y_test,predictions=test_preds, output_file=args.output)
+    print(f'Excel file with 2 sheets saved to: {path}')
