@@ -31,22 +31,26 @@ def imgPreProc(img_Filename:str) -> np.ndarray:
     flattened = normalized_img.flatten()
     return flattened
 
-def write_predictions_to_excel(predictions: np.ndarray, y_true:np.ndarray, output_file: str) -> str:
+def write_predictions_to_excel(predictions: np.ndarray, y_true: np.ndarray, dataset_test, output_file: str) -> str:
     """
-    This function takes a list of predictions and true labels, and creates a confusion matrix
+    This function takes a list of predictions and true labels, and creates a confusion matrix.
     From here, it will write to excel sheets:
-        Sheet 1: Filename / Index | Predicted Label 
+        Sheet 1: Filename | Predicted Label
         Sheet 2: Label | True Count | Predicted Count | Correct Count
     """
-    # compute the confusion matrix
+    # Get filenames from the dataset
+    filenames = [os.path.basename(image_path.numpy().decode("utf-8")) for image_path, _ in dataset_test]
+
+    # Compute the confusion matrix
     cm = confusion_matrix(y_true=y_true, y_pred=predictions)
     correct = np.diag(cm)
 
     # Convert labels array to integers
     labels = y_true.astype(int)
     predictions = predictions.astype(int)
+
     # Create a DataFrame to store predictions and labels
-    df = pd.DataFrame({'image_filename': range(len(predictions)), 'label': predictions})
+    df = pd.DataFrame({'image_filename': filenames, 'predicted_label': predictions})
 
     # Write the DataFrame to an Excel file using openpyxl
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:

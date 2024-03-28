@@ -1,19 +1,19 @@
 import argparse
-from SMR import SoftMaxRegressor
 import seaborn as sns
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix
 from keras.utils import image_dataset_from_directory
 
+from SMR import SoftMaxRegressor
 from ML_functions import * 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="SMR Debug")
     parser.add_argument("-w","--weights", default=None, type=str, help="Path to the saved weights.")
-    parser.add_argument("-s","--save", default='MNIST_weights', type=str, help="Path to save weights.")
-    parser.add_argument("-o","--output", default='predictions_sheets_MNIST.xlsx', type=str, help="Path to save excel file.")
+    parser.add_argument("-s","--save", default='worm_weights', type=str, help="Path to save weights.")
+    parser.add_argument("-o","--output", default='predictions_sheets_WORM.xlsx', type=str, help="Path to save excel file.")
     parser.add_argument('-d', '--directory', required=True, type=str, help='Parent Directory to the images')
 
     args = parser.parse_args()
@@ -26,7 +26,7 @@ if __name__ == '__main__':
                                                  seed=69,
                                                  subset="both")
 
-    # Initialize the SoftMaxClassifier + regression
+    # Initialize the SoftMaxRegressorTF
     smr = SoftMaxRegressor(alpha=0, classes=len(dataset_train.class_names), init_weights=args.weights)
 
     # epoch limiter
@@ -44,7 +44,8 @@ if __name__ == '__main__':
             batch_loss = []
             for batch in dataset_train:
                 X_batch, y_batch = batch
-                X_batch = X_batch.numpy().reshape(X_batch.shape[0], -1) / 255
+                
+                X_batch = X_batch.numpy().reshape(X_batch.shape[0], -1)   # reshape and normalize
                 y_batch = y_batch.numpy()
                 
                 grad_norms, loss = smr.fit(X=X_batch, y=y_batch)
@@ -58,7 +59,8 @@ if __name__ == '__main__':
         
         epoch_grad_norms = np.array(epoch_grad_norms)
         # Save the weights
-        np.save(args.save, smr.weights)
+        checkpoint = tf.train.Checkpoint(weights=smr.weights)
+        checkpoint.save(args.save)
 
         x = np.arange(len(epoch_loss))
         plt.figure(figsize=(8, 6))
@@ -86,37 +88,38 @@ if __name__ == '__main__':
         plt.title("Training Confusion Matrix")
         plt.show()
 
+        # computing the accuracy with the confusion matrix
+        accuracy = np.sum(np.diag(cm_train)) / np.sum(cm_train)
+        print(f'Train Accuracy: {accuracy}')
+
+    # Compute testing results:
+    test_preds = []
+    true_labels = []
+    for batch in dataset_test:
+        X_batch, y_batch = batch
+        X_batch = X_batch.numpy().reshape(X_batch.shape[0], -1) / 255
+        test_preds.extend(smr.predict(X_batch))
+        true_labels.extend(y_batch)
+    test_preds = np.array(test_preds)
+    true_labels = np.array(true_labels)
+
+    cm_test = confusion_matrix(true_labels, test_preds, labels=np.unique(true_labels))
+
+    # Plot the confusion matrix
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm_test, annot=True, fmt="d", cmap="Greens", cbar=False)
+    plt.xlabel("Predicted Labels")
+    plt.ylabel("True Labels")
+    plt.title("Testing Confusion Matrix")
+    plt.show()
+
     # computing the accuracy with the confusion matrix
-    accuracy = np.sum(np.diag(cm_train)) / np.sum(cm_train)
+    accuracy = np.sum(np.diag(cm_test)) / np.sum(cm_test)
     print(f'Test Accuracy: {accuracy}')
 
-    # # Compute testing results:
-    # test_preds = []
-    # y_test = np.concatenate([y for _, y in dataset_test], axis=0)
-    # test_miniset = dataset_test.batch(batch_size)
-    # for batch in test_miniset:
-    #     X_batch, _ = batch
-    #     X_batch = X_batch.numpy()
-    #     test_preds.extend(smr.predict(X_batch))
-    # test_preds = np.array(test_preds)
+    # Write predictions to an excel file
+    if not args.output.endswith('.xlsx'):
+        args.output += '.xlsx'
 
-    # cm_test = confusion_matrix(y_test, test_preds, labels=np.unique(y_test))
-
-    # # Plot the confusion matrix
-    # plt.figure(figsize=(8, 6))
-    # sns.heatmap(cm_test, annot=True, fmt="d", cmap="Greens", cbar=False)
-    # plt.xlabel("Predicted Labels")
-    # plt.ylabel("True Labels")
-    # plt.title("Testing Confusion Matrix")
-    # plt.show()
-
-    # # computing the accuracy with the confusion matrix
-    # accuracy = np.sum(np.diag(cm_test)) / np.sum(cm_test)
-    # print(f'Test Accuracy: {accuracy}')
-
-    # # Write predictions to an excel file
-    # if not args.output.endswith('.xlsx'):
-    #     args.output += '.xlsx'
-
-    # path = write_predictions_to_excel(y_true=y_test, predictions=test_preds, output_file=args.output)
-    # print(f'Excel file with 2 sheets saved to: {path}')
+    path = write_predictions_to_excel(y_true=true_labels, dataset_test=dataset_test, predictions=test_preds, output_file=args.output)
+    print(f'Excel file with 2 sheets saved to: {path}')

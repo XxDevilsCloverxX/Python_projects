@@ -53,8 +53,6 @@ if __name__ == '__main__':
             batch_loss = []
             for batch in train_miniset:
                 X_batch, y_batch = batch
-                X_batch = X_batch.numpy()
-                y_batch = y_batch.numpy()
                 
                 grad_norms, loss = smr.fit(X=X_batch, y=y_batch)
                 batch_loss.append(loss)
@@ -80,7 +78,6 @@ if __name__ == '__main__':
         train_miniset = train_dataset.batch(batch_size)
         for batch in train_miniset:
             X_batch, y_batch = batch
-            X_batch = X_batch.numpy()
             train_preds.extend(smr.predict(X_batch))
                 
         cm = confusion_matrix(y_train, train_preds, labels=np.unique(y_train))
