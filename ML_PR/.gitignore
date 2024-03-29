@@ -1,7 +1,7 @@
-*.csv
-*.xlsx
+# *.csv
+# *.xlsx
 *.png
-*.tif
+# *.tif
 *.jpg
 *.jpeg
-*.pdf
+# *.pdf
