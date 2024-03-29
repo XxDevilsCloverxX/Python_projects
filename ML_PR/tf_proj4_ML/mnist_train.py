@@ -96,7 +96,7 @@ def main():
             epoch_val_loss.append(tf.reduce_mean(batch_val_loss))
             epoch_loss.append(tf.reduce_mean(batch_loss))
             gradient_norms.append(grad_norms)
-            epoch_rate *=0.995
+            epoch_rate *=0.8
 
             #if our validation loss is no longer decreasing, exit
             if i > 10 and (tf.math.reduce_std(epoch_val_loss[-8:]) < 0.25 or tf.argmin(epoch_val_loss[-8:] < 4)):
@@ -136,6 +136,8 @@ def main():
         test_pred.extend(smr.predict(X=x_batch))
     acc = conf_matrix_eval(true_labels, test_pred)
     print(f'Testing Accuracy: {acc}')
+
+    cm = confusion_matrix(true_labels, test_pred)
 
 if __name__ == '__main__':
     main()
