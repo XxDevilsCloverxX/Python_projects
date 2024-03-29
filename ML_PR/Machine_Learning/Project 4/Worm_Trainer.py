@@ -110,7 +110,7 @@ def main():
             epoch_rate *=0.8
 
             #if our validation loss is no longer decreasing, exit
-            if i > 10 and (tf.math.reduce_std(epoch_val_loss[-10:]) < 0.25 or tf.argmin(epoch_val_loss[-10:]) < 4):
+            if i > 10 and (tf.math.reduce_std(epoch_val_loss[-10:]) < 0.1 or tf.argmin(epoch_val_loss[-10:]) < 4):
                 print(f'Converged on epoch {i+1}')
                 break
 
@@ -135,24 +135,36 @@ def main():
             x_batch, y_batch = batch
             true_labels.extend(y_batch)
             train_pred.extend(smr.predict(X=x_batch))
-        acc = conf_matrix_eval(true_labels, train_pred)
-        print(f'Training Accuracy: {acc}')
+        train_acc = conf_matrix_eval(true_labels, train_pred)
+        print(f'Training Accuracy: {train_acc}')
     
     else:
         # load the trainer
         smr = SoftMaxRegressor(init_weights=args.weights)
+    
     # perform test error calculation
     test_pred = []
     true_labels = []
+    time_start = time()
     for batch in test_batches:
         x_batch, y_batch = batch
         true_labels.extend(y_batch)
         test_pred.extend(smr.predict(X=x_batch))
-    acc = conf_matrix_eval(true_labels, test_pred)
-    print(f'Testing Accuracy: {acc}')
+    test_time = time() - time_start
 
+    acc = conf_matrix_eval(true_labels, test_pred)
+    print(f'Testing Accuracy: {acc:.3f}')
     cm = confusion_matrix(true_labels, test_pred)
     show_confusion_matrix(cm)
+
+    with open('WormLogger.txt', 'w') as logger:
+        data = []
+        if args.weights is None:
+            data.append(f'Train_time: {train_time:.3f}s\n')
+            data.append(f'Train Accuracy: {train_acc:.3f}\n')
+        data.append(f'Test time: {test_time:.3f}s\n')
+        data.append(f'Testing Accuracy: {acc:.3f}\n')
+        logger.writelines(data)
 
 if __name__ == '__main__':
     main()

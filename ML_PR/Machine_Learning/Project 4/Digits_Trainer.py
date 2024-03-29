@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from SMR import SoftMaxRegressor
 from numpy import save
 from time import time
+from ML_functions import show_confusion_matrix
 
 def eval_train(epoch_loss, gradient_norms, epoch_val_loss):
     plt.figure(figsize=(8, 6))
@@ -39,7 +40,7 @@ def conf_matrix_eval(y_true, y_pred):
     return accuracy
 
 def process_image(x, y):
-    img = tf.cast(tf.reshape(img, [-1]), tf.float32) / 255.    
+    img = tf.cast(tf.reshape(x, [-1]), tf.float32) / 255.    
     return img, y
 
 def main():
@@ -75,12 +76,13 @@ def main():
     # Get unique labels and count them
     unique_labels, _ = tf.unique(y_train)
     num_unique_labels = tf.size(unique_labels)
-    # initialize the trainer
-    smr = SoftMaxRegressor(alpha=0, classes=num_unique_labels, momentum=0.9, init_weights=args.weights)
 
     train_start = time()
     # train on the data
     if args.weights is None:
+        # initialize the trainer
+        smr = SoftMaxRegressor(alpha=0, classes=num_unique_labels, momentum=0.9, init_weights=args.weights)
+
         # Example usage: iterate through batches of training data for set epochs
         gradient_norms = []
         epoch_loss = []
@@ -103,7 +105,7 @@ def main():
             epoch_rate *=0.8
 
             #if our validation loss is no longer decreasing, exit
-            if i > 10 and (tf.math.reduce_std(epoch_val_loss[-10:]) < 0.25 or tf.argmin(epoch_val_loss[-10:]) < 4):
+            if i > 10 and (tf.math.reduce_std(epoch_val_loss[-10:]) < 0.1 or tf.argmin(epoch_val_loss[-10:]) < 4):
                 print(f'Converged on epoch {i+1}')
                 break
 
@@ -128,20 +130,36 @@ def main():
             x_batch, y_batch = batch
             true_labels.extend(y_batch)
             train_pred.extend(smr.predict(X=x_batch))
-        acc = conf_matrix_eval(true_labels, train_pred)
-        print(f'Training Accuracy: {acc}')
+        train_acc = conf_matrix_eval(true_labels, train_pred)
+        print(f'Training Accuracy: {train_acc}')
     
+    else:
+        # load the classifier
+        smr = SoftMaxRegressor(init_weights=args.weights)
+
     # perform test error calculation
     test_pred = []
     true_labels = []
+    test_time_start = time()
     for batch in test_batches:
         x_batch, y_batch = batch
         true_labels.extend(y_batch)
         test_pred.extend(smr.predict(X=x_batch))
+    test_time= time() - test_time_start
     acc = conf_matrix_eval(true_labels, test_pred)
-    print(f'Testing Accuracy: {acc}')
 
     cm = confusion_matrix(true_labels, test_pred)
+    show_confusion_matrix(cm)
+    print(f'Testing accuracy {acc:.3f}')
+
+    with open('MnistLogger.txt', 'w') as logger:
+        data = []
+        if args.weights is None:
+            data.append(f'Train_time: {train_time:.3f}\n')
+            data.append(f'Train accuracy: {train_acc:.3f}\n')
+        data.append(f'Test time: {test_time:.3f}\n')
+        data.append(f'Testing Accuracy: {acc}\n')
+        logger.writelines(data)
 
 if __name__ == '__main__':
     main()
