@@ -2,65 +2,10 @@ import argparse
 import tensorflow as tf
 from keras.datasets.mnist import load_data
 from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
 from SMR import SoftMaxRegressor
 from numpy import save
 from time import time
-from ML_functions import show_confusion_matrix
-import cv2
-import numpy as np
-
-def eval_train(epoch_loss, gradient_norms, epoch_val_loss):
-    plt.figure(figsize=(8, 6))
-
-    # Plot gradient norms
-    plt.subplot(1, 2, 1)
-    plt.plot(range(1, len(gradient_norms) + 1), gradient_norms, marker='o')
-    plt.title('Gradient Norms')
-    plt.xlabel('Epochs')
-    plt.ylabel('Norm')
-    plt.grid(True)
-
-    # Plot epoch loss
-    plt.subplot(1, 2, 2)
-    plt.plot(range(1, len(epoch_loss) + 1), epoch_loss, marker='o', color='orange', label='Train Loss')
-    plt.plot(range(1, len(epoch_val_loss) + 1), epoch_val_loss, marker='o', color='blue', label='Validation loss')
-    plt.title('Epoch Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.grid(True)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-def conf_matrix_eval(y_true, y_pred):
-    # make the confusion matrix for train data & compute accuracy
-    cm = confusion_matrix(y_true=y_true, y_pred=y_pred)
-    correct = tf.reduce_sum(tf.linalg.diag_part(cm))
-    accuracy = correct / tf.reduce_sum(cm)
-    return accuracy
-
-def cv2_func(image, label):
-    img = image.numpy()
-    # Convert image to uint8
-    img = img.astype(np.uint8)
-
-    # Apply Otsu's thresholding to the grayscale image
-    _, otsu = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # Convert to TensorFlow tensor
-    img = tf.convert_to_tensor(otsu, dtype=tf.float32)
-    # normalize
-    img = tf.truediv(img, 255)
-
-    # flatten the image
-    img = tf.reshape(img, [-1])  # Flatten to a 1D tensor
-    return img, label
-
-def tf_cv2_func(image, label):
-    [image, label] = tf.py_function(cv2_func, [image, label], [tf.float32, tf.uint8])
-    return image, label
+from ML_functions import *
 
 def main():
     parser = argparse.ArgumentParser(description="SMR Debug")

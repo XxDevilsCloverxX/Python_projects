@@ -150,7 +150,7 @@ def main():
             true_labels.extend(y_batch)
             train_pred.extend(smr.predict(X=x_batch))
         train_acc = conf_matrix_eval(true_labels, train_pred)
-        print(f'Training Accuracy: {train_acc}')
+        print(f'Training Accuracy: {train_acc:.3f}')
     
     else:
         # load the trainer
