@@ -5,8 +5,8 @@ class SoftMaxRegressor:
 
     def __init__(self, alpha=0, classes=2, init_weights=None):
         if init_weights is not None:
-            checkpoint = tf.train.Checkpoint(weights=self.weights)
-            checkpoint.restore(init_weights).expect_partial()
+            weights = np.load(init_weights, allow_pickle=True)
+            self.weights = tf.convert_to_tensor(weights)
         else:
             self.weights = None
 
@@ -42,21 +42,33 @@ class SoftMaxRegressor:
         one_hot_matrix = tf.one_hot(labels, depth=self.num_classes)
         return one_hot_matrix
 
-    def fit(self, X, y, rate=0.01):
+    def fit(self, X, y, val_x=None, val_y=None, rate=0.01):
         # encode y into a one-hot matrix
         Y_onehot = self.one_hot_encode(y)
+        
+        # flag to perform validation error
+        validate = False if val_x is None or val_y is None else True
+        
         # initialize weights -> L x K
         if self.weights is None:
             self.weights = tf.Variable(tf.zeros((X.shape[1], Y_onehot.shape[1]), dtype=tf.float32))
 
         # compute the gradient of the cross-entropy loss
         grad = self.gradient(X, Y_onehot)
+        
         # update the weights
         self.weights.assign_sub(rate * grad)
-        # compute the new loss
+        
+        # compute the loss
         loss = self.cross_entropy_loss(y_true=Y_onehot, X=X)
+        
+        if validate:
+            v_y_onehot = self.one_hot_encode(val_y)
+            val_loss = self.cross_entropy_loss(y_true=v_y_onehot, X=val_x)
+        else:
+            val_loss = 0
         # return the computed gradient norms + loss
-        return tf.norm(grad, axis=0), loss
+        return tf.norm(grad, axis=0), loss, val_loss
     
     def gradient(self, X, Y):
         """
