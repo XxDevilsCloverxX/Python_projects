@@ -6,6 +6,7 @@ from SMR import SoftMaxRegressor
 from keras.utils import image_dataset_from_directory, split_dataset
 from numpy import save
 from time import time
+from ML_functions import show_confusion_matrix
 
 def eval_train(epoch_loss, gradient_norms, epoch_val_loss):
     plt.figure(figsize=(8, 6))
@@ -80,12 +81,13 @@ def main():
     # Get unique labels and count them
     unique_labels, _ = tf.unique(val_y)
     num_unique_labels = tf.size(unique_labels)
-    # initialize the trainer
-    smr = SoftMaxRegressor(alpha=1/4, classes=num_unique_labels, momentum=0.9, init_weights=args.weights)
 
     train_start = time()
     # train on the data
     if args.weights is None:
+        # initialize the trainer
+        smr = SoftMaxRegressor(alpha=1/4, classes=num_unique_labels, momentum=0.9, init_weights=args.weights)
+
         # Example usage: iterate through batches of training data for set epochs
         gradient_norms = []
         epoch_loss = []
@@ -136,6 +138,9 @@ def main():
         acc = conf_matrix_eval(true_labels, train_pred)
         print(f'Training Accuracy: {acc}')
     
+    else:
+        # load the trainer
+        smr = SoftMaxRegressor(init_weights=args.weights)
     # perform test error calculation
     test_pred = []
     true_labels = []
@@ -147,6 +152,7 @@ def main():
     print(f'Testing Accuracy: {acc}')
 
     cm = confusion_matrix(true_labels, test_pred)
+    show_confusion_matrix(cm)
 
 if __name__ == '__main__':
     main()
