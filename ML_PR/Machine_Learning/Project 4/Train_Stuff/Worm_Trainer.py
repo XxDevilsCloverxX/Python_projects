@@ -45,12 +45,14 @@ def cv2_func(image, label):
     img = image.numpy()
     # Convert image to uint8
     img = img.astype(np.uint8)
-    
+
+    img = cv2.bilateralFilter(img, 5, 5, 5)
+
     # Apply Otsu's thresholding to the grayscale image
-    _, otsu = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Convert to TensorFlow tensor
-    img = tf.convert_to_tensor(otsu, dtype=tf.float32)
+    img = tf.convert_to_tensor(img, dtype=tf.float32)
     # normalize
     img = tf.truediv(img, 255)
 
@@ -79,7 +81,7 @@ def main():
                                                                subset='both',
                                                                batch_size=None)
     
-    test_dataset, validation_dataset = split_dataset(test_dataset, left_size=0.5)
+    test_dataset, validation_dataset = split_dataset(test_dataset, left_size=0.5, shuffle=True)
     
     train_dataset = train_dataset.map(tf_cv2_func)
     test_dataset = test_dataset.map(tf_cv2_func)
@@ -124,8 +126,11 @@ def main():
             epoch_rate *=0.8
 
             #if our validation loss is no longer decreasing, exit
-            if i > 10 and (tf.math.reduce_std(epoch_val_loss[-10:]) < 0.1 or tf.argmin(epoch_val_loss[-10:]) < 4):
-                print(f'Converged on epoch {i+1}')
+            if i > 10 and tf.math.reduce_std(epoch_val_loss[-10:]) < 0.1:
+                print(f'Converged on epoch {i+1} due to small learning')
+                break
+            elif i>10 and tf.argmin(epoch_val_loss[-10:]) < 4:
+                print(f'Converged on epoch {i+1} due to divergence')
                 break
 
         train_time = time() - train_start
