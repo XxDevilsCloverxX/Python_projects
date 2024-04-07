@@ -1,49 +1,55 @@
 import numpy as np
 import pandas as pd
-from NaiveBayes import NaiveBayesClassifier
 
+def gaussian(X, mu, var):
+    # Calculate the exponent term
+    exponent = -((X[:, np.newaxis] - mu) ** 2) / (2 * var)
+    
+    # Calculate the Gaussian probability density function
+    pdf = np.exp(exponent) / np.sqrt(2 * np.pi * var)
+    
+    # Compute the product of probabilities along each feature axis
+    return np.prod(pdf, axis=2)
 
-def naive_bayes_clf(train_filename:str, test_filename:str):
-    """
-    train_filename:  str to the excel sheet to be read
-    """
-    df_test = pd.read_excel(test_filename, header=None)
-    df = pd.read_excel(train_filename, header=None)
-    df_grouped = df.groupby(df.columns[-1])
-
-    # Convert DataFrame groups to NumPy arrays
-    grouped_np = [data.to_numpy() for _, data in df_grouped]
-
-    grouped_c1 = np.array(grouped_np[0])
-    grouped_c2 = np.array(grouped_np[1])
-
-    priors = np.array((grouped_c1.shape[0] / df.shape[0] , grouped_c2.shape[0] / df.shape[0]))
-    # print(priors, priors.shape)
-
+def NaiveBayesCLF(trainfile, testfile):
+    # open the datasets
+    df = pd.read_excel(trainfile, header=None ,names=('x1', 'x2', 'x3', 'x4', 'x5', 'label'))
+    df_test = pd.read_excel(testfile, header=None)
+    df_testy = df_test.iloc[:, -1].to_numpy()
+    df_testx = df_test.iloc[:, :-1].to_numpy()
+    
+    # estimate the prior
+    priors = (df.groupby('label').size() / len(df)).to_numpy()
+    # print(priors)
+    # estimate the means
+    means = df.groupby('label').mean().to_numpy()
+    # estimate the variances
+    vars = df.groupby('label').var().to_numpy()
+    # print(vars)
+    # store possible classes
+    classes = df['label'].unique()
+    # print(classes)
+    
+    # get the test scores
+    tst_z = gaussian(df_testx, means, vars)
+    # multiply by priors
+    probs = tst_z * priors
+    # class predictions
+    pred_y = 1 + np.argmax(probs, axis=1)
+    
+    # compute the error
+    error = np.mean(pred_y != df_testy)
+    return error
 
 def main():
-    # Define the parameters for the datasets
-    m = np.vstack((np.zeros(5), np.ones(5)))  # Mean vectors for class 1 and class 2
-    # print(m, m.shape)
-    s = np.zeros((2,5,5))  # Covariance matrices for class 1 and class 2
-    s[0,:,:] = np.array([[0.8, 0.2, 0.1, 0.05, 0.01],   # Covariance matrix for class 1
-                        [0.2, 0.7, 0.1, 0.03, 0.02],
-                        [0.1, 0.1, 0.8, 0.02, 0.01],
-                        [0.05, 0.03, 0.02, 0.9, 0.01],
-                        [0.01, 0.02, 0.01, 0.01, 0.8]])
-    s[1,:,:] = np.array([[0.9, 0.1, 0.05, 0.02, 0.01],   # Covariance matrix for class 2
-                        [0.1, 0.8, 0.1, 0.02, 0.02],
-                        [0.05, 0.1, 0.7, 0.02, 0.01],
-                        [0.02, 0.02, 0.02, 0.6, 0.02],
-                        [0.01, 0.02, 0.01, 0.02, 0.7]])    
-    # print(s, s.shape)
-    p = np.vstack((1/2, 1/2))  # Class probabilities
-    # print(p, p.shape)
 
-    # perform classifiers for the given filename
-    naive_bayes_clf('Proj4Train100.xlsx', 'Proj4Test.xlsx')
-    # bayes_clfs('', m,s,p)
-    pass
+    # Create an empty DataFrame
+    errors = pd.DataFrame(index=['Naive Bayes', 'MLE Bayes', 'Bayes'], 
+                      columns=['Error Train_N = 100', 'Error Train_N = 1000'])
 
-if __name__ == "__main__":
+    errors.at['Naive Bayes', 'Error Train_N = 100'] = NaiveBayesCLF('Proj4Train100.xlsx', 'Proj4Test.xlsx')
+    errors.at['Naive Bayes', 'Error Train_N = 1000'] = NaiveBayesCLF('Proj4Train1000.xlsx', 'Proj4Test.xlsx')
+    print(errors)
+
+if __name__ == '__main__':
     main()
