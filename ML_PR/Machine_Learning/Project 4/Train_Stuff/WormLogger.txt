@@ -1,4 +1,4 @@
-Train_time: 424.192s
-Train Accuracy: 0.793
-Test time: 5.330s
-Testing Accuracy: 0.789
+Train_time: 227.457s
+Train Accuracy: 0.809
+Test time: 2.958s
+Testing Accuracy: 0.810
