@@ -49,7 +49,7 @@ def Fprop(X, W1, b1, W2, b2, clf=True):
     Z2 = sigmoid(A2) if clf else A2 # num_out x N
     return A1, Z1, A2, Z2
 
-def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.1):
+def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=5000, rate=0.1):
     W1, b1, W2, b2 = init_params(num_in,num_h,num_out)
     costs = []
 
@@ -62,11 +62,6 @@ def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.1):
         # Measure the cost of the prediction
         cost = loss(Y, Z2)
         costs.append(cost)
-
-        # # classification 100%
-        # if np.all(np.round(Z2)==y):
-        #     print("100% Acc")
-        #     break
 
         # Compute gradients for output layer
         dZ2 = Z2 - Y
@@ -86,12 +81,12 @@ def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.1):
         b2 -= rate*db2
 
         # Plot the cost in 'real-time'
-        if i % 10 == 0:
+        if i % 50 == 0:
             plt.clf()  # Clear previous plot
             plt.plot(costs)
             plt.xlabel('Epoch')
             plt.ylabel(f'Avg/ Cost {loss.__name__}')
-            plt.title('Avg Cost vs Epoch')
+            plt.title(f'Avg Cost vs Epoch {num_h} hidden units')
             plt.pause(0.001)  # Pause to update plot
             
     plt.ioff()  # Turn off interactive mode
@@ -100,7 +95,7 @@ def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.1):
 
 #######################################################################
 if __name__ == '__main__':
-    np.random.seed(666)
+    np.random.seed(0)
     # create the XOR data
     X = np.array((
         (-1,-1),
@@ -170,6 +165,7 @@ if __name__ == '__main__':
     plt.scatter(X, y, label='Samples', marker='s', edgecolors='black')
     plt.plot(x_test, ztest3.T, label=f'3 units - Cost = {costs3[-1]:.3f}')
     plt.plot(x_test, ztest20.T, label=f'20 units - Cost = {costs20[-1]:.3f}')
-
+    plt.xlabel('Epoch')
+    plt.ylabel('Costs (MSE)')
     plt.legend()
     plt.show()
