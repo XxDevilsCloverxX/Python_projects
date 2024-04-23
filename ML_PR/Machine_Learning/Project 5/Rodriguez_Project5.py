@@ -49,7 +49,7 @@ def Fprop(X, W1, b1, W2, b2, clf=True):
     Z2 = sigmoid(A2) if clf else A2 # num_out x N
     return A1, Z1, A2, Z2
 
-def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.35):
+def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.1):
     W1, b1, W2, b2 = init_params(num_in,num_h,num_out)
     costs = []
 
@@ -62,14 +62,14 @@ def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.35):
         # Measure the cost of the prediction
         cost = loss(Y, Z2)
         costs.append(cost)
-        # classification 100%
-        if np.all(np.round(Z2)==y):
-            print("100% Acc")
-            break
+
+        # # classification 100%
+        # if np.all(np.round(Z2)==y):
+        #     print("100% Acc")
+        #     break
 
         # Compute gradients for output layer
-        dZ2 = Z2 - Y    
-        # dZ2 = sigmoid((1-2*y)*Z2)*(1-2*y)
+        dZ2 = Z2 - Y
         dA2 = (dZ2 * d_sigmoid(A2)) if clf else dZ2
         dW2 = (1/Y.size) * (dA2 @ Z1.T).T
         db2 = (1/Y.size) * np.sum(dA2, axis=1, keepdims=True)
@@ -100,7 +100,7 @@ def train(X,Y, num_in,num_h,num_out, loss, clf:bool, epochs=1000, rate=0.35):
 
 #######################################################################
 if __name__ == '__main__':
-    np.random.seed(0)
+    np.random.seed(666)
     # create the XOR data
     X = np.array((
         (-1,-1),
@@ -154,6 +154,7 @@ if __name__ == '__main__':
 
     # solve the regression problem
     X = pd.read_excel('Proj5Dataset.xlsx').to_numpy()
+    np.random.shuffle(X)
     y = X[:, -1]
     X = X[:,:-1]
 
@@ -165,13 +166,10 @@ if __name__ == '__main__':
     W1, b1, W2, b2, costs20 = train(X,y,1,20,1, loss=MSE, clf=False)
     _,_,_,ztest20 = Fprop(x_test, W1, b1, W2, b2, clf=False)
 
-    W1, b1, W2, b2, costs10 = train(X,y,1,10,1, loss=MSE, clf=False)
-    _,_,_,ztest10 = Fprop(x_test, W1, b1, W2, b2, clf=False)
-
-
     plt.figure()
     plt.scatter(X, y, label='Samples', marker='s', edgecolors='black')
     plt.plot(x_test, ztest3.T, label=f'3 units - Cost = {costs3[-1]:.3f}')
     plt.plot(x_test, ztest20.T, label=f'20 units - Cost = {costs20[-1]:.3f}')
+
     plt.legend()
     plt.show()
