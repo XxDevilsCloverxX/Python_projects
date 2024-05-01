@@ -1,5 +1,6 @@
 import argparse
 import tensorflow as tf
+from time import time
 from keras.utils import image_dataset_from_directory, split_dataset
 from sklearn.metrics import confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
@@ -78,6 +79,8 @@ def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
 def preprocess_original(image, label):
     # Convert image to float32
     img = tf.image.convert_image_dtype(image, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
     return img, label
 
 def preprocess_sobel(image, label):
@@ -86,6 +89,8 @@ def preprocess_sobel(image, label):
     
     # Convert image to float32
     img = tf.image.convert_image_dtype(img, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
 
     # Apply Sobel edge detection
     img = tf.image.sobel_edges(img)  # Sobel edge detection
@@ -104,11 +109,14 @@ def preprocess_sobel(image, label):
 def preprocess_contrast(image, label, factor=1.0):
     # Convert image to float32
     img = tf.image.convert_image_dtype(image, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
 
     # Adjust contrast
     img = tf.image.adjust_contrast(img, contrast_factor=factor)
 
     return img, label
+
 
 
 def main():
@@ -136,8 +144,9 @@ def main():
     # Preprocess validation data
     val_x, val_y = next(iter(validation_dataset.batch(len(validation_dataset))))
 
-    # # Train with raw dataset
-    # train_model(train_batches, val_x, val_y, test_batches, args.epochs, "Raw Data")
+    start = time()
+    # Train with raw dataset
+    train_model(train_batches, val_x, val_y, test_batches, args.epochs, "raw")
 
     # Preprocess dataset using Sobel edge detection
     train_dataset_sobel = train_dataset.map(preprocess_sobel)
@@ -149,7 +158,7 @@ def main():
     test_batches_sobel = test_dataset_sobel.batch(BATCH_SIZE)
 
     # Train with Sobel edge detection
-    # train_model(train_batches_sobel, val_x, val_y, test_batches_sobel, args.epochs, "Sobel Edge Data")
+    train_model(train_batches_sobel, val_x, val_y, test_batches_sobel, args.epochs, "edge")
 
     # Preprocess dataset using gamma correction
     train_dataset_gamma = train_dataset.map(lambda x, y: preprocess_contrast(x, y, factor=2))  # You can adjust gamma value as needed
@@ -162,12 +171,14 @@ def main():
     test_batches_gamma = test_dataset_gamma.batch(BATCH_SIZE)
 
     # Train with gamma corrected data
-    # train_model(train_batches_gamma, val_x, val_y, test_batches_gamma, args.epochs, "Contrast Corrected Data")
-    
+    train_model(train_batches_gamma, val_x, val_y, test_batches_gamma, args.epochs, "contrast")
+    end = time()
+
+    print(f'Elapsed train time: {(end-start)/60:.3f} min')
     # Load trained models
-    model_original = load_model("Raw Data.keras")
-    model_sobel = load_model("Sobel Edge Data.keras")
-    model_contrast = load_model("Contrast Corrected Data.keras")
+    model_original = load_model("raw.keras")
+    model_sobel = load_model("edge.keras")
+    model_contrast = load_model("contrast.keras")
     
     test_x_raw, test_y = next(iter(test_dataset.batch(len(validation_dataset))))
     test_x_sobel, _ = next(iter(test_dataset_sobel.batch(len(validation_dataset))))
