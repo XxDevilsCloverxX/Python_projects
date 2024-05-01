@@ -10,7 +10,8 @@ import numpy as np
 def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
     # Design a CNN model for binary classification
     model = tf.keras.Sequential([
-        tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape=(30, 30, 1)),
+        tf.keras.Input(shape=(30,30,1)),
+        tf.keras.layers.Conv2D(32, (3,3), activation='relu'),
         tf.keras.layers.MaxPooling2D((2, 2)),
         tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
         tf.keras.layers.MaxPooling2D((2, 2)),
@@ -136,16 +137,19 @@ def main():
     
     test_dataset, validation_dataset = split_dataset(test_dataset, left_size=0.5, shuffle=True)
     
-    # Optionally shuffle and batch the datasets
+    # Batch the datasets
     BATCH_SIZE = 64
-    train_batches = train_dataset.shuffle(train_dataset.cardinality().numpy()).batch(BATCH_SIZE)
-    test_batches = test_dataset.batch(BATCH_SIZE)
     
-    # Preprocess validation data
-    val_x, val_y = next(iter(validation_dataset.batch(len(validation_dataset))))
-
     start = time()
-    # Train with raw dataset
+    # Train with raw dataset normalized
+    train_raw_data = train_dataset.map(preprocess_original)
+    test_dataset_raw = test_dataset.map(preprocess_original)
+    validation_dataset_raw = validation_dataset.map(preprocess_original)
+    val_x, val_y = next(iter(validation_dataset_raw.batch(len(validation_dataset))))
+
+    train_batches = train_raw_data.shuffle(train_raw_data.cardinality().numpy()).batch(BATCH_SIZE)
+    test_batches = test_dataset_raw.batch(BATCH_SIZE)
+
     train_model(train_batches, val_x, val_y, test_batches, args.epochs, "raw")
 
     # Preprocess dataset using Sobel edge detection
@@ -175,18 +179,21 @@ def main():
     end = time()
 
     print(f'Elapsed train time: {(end-start)/60:.3f} min')
+
     # Load trained models
     model_original = load_model("raw.keras")
     model_sobel = load_model("edge.keras")
     model_contrast = load_model("contrast.keras")
     
-    test_x_raw, test_y = next(iter(test_dataset.batch(len(validation_dataset))))
-    test_x_sobel, _ = next(iter(test_dataset_sobel.batch(len(validation_dataset))))
-    test_x_contrast, _ = next(iter(test_dataset_gamma.batch(len(validation_dataset))))
+    test_dataset_raw = test_dataset.map(preprocess_original)
+    test_x_raw, test_y = next(iter(test_dataset_raw.batch(len(test_dataset))))
+    test_x_sobel, _ = next(iter(test_dataset_sobel.batch(len(test_dataset))))
+    test_x_contrast, _ = next(iter(test_dataset_gamma.batch(len(test_dataset))))
+
     pred_original = model_original.predict(test_x_raw)
     pred_sobel = model_sobel.predict(test_x_sobel)
     pred_contrast = model_contrast.predict(test_x_contrast)
-    
+
     predictions = tf.stack([pred_original, pred_sobel, pred_contrast])
     ensemble_pred = tf.reduce_mean(predictions, axis=0)
     ensemble_pred = tf.round(ensemble_pred)

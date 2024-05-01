@@ -2,8 +2,10 @@ import os
 import tkinter as tk
 from tkinter import filedialog, scrolledtext
 import tensorflow as tf
+from time import time
 from tensorflow.keras.models import load_model
 from keras.utils import image_dataset_from_directory
+from CNN_functions import *
 
 class ImageBatchGeneratorGUI:
     def __init__(self, master):
@@ -61,42 +63,42 @@ class ImageBatchGeneratorGUI:
             self.directory,
             labels="inferred",
             label_mode=None,
-            batch_size=batch_size,
+            batch_size=None,
             image_size=image_size,
             color_mode="grayscale"  # Convert images to grayscale
         )
 
         # Initialize batch variables
-        normal_predictions = []
-        edge_predictions = []
-        contrast_predictions = []
-        filenames = []
+        filenames = dataset.file_paths
 
-        # Predict on the dataset in batches
-        for batch in dataset:
-            batch_images = batch[0]
-            batch_filenames = batch[1]
-            print(batch_images)
-            # print(batch_images.shape)
-            continue
-            # Predict on the batch for each model
-            normal_pred = normal_model.predict(batch_images)
-            edge_pred = edge_model.predict(batch_images)
-            contrast_pred = contrast_model.predict(batch_images)
+        # raw input predictions
+        start = time()
+        normal_dataset = dataset.map(preprocess_original)
+        normal_dataset = normal_dataset.batch(batch_size)
+        normal_predictions = normal_model.predict(normal_dataset)        
 
-            # Extend predictions into separate lists
-            normal_predictions.extend(normal_pred)
-            edge_predictions.extend(edge_pred)
-            contrast_predictions.extend(contrast_pred)
-            filenames.extend(batch_filenames)
+        # edge detect predictions
+        edge_dataset = dataset.map(preprocess_sobel)
+        edge_dataset = edge_dataset.batch(batch_size)
+        edge_predictions = edge_model.predict(edge_dataset)
+        
+        # contrast predictions
+        contrast_dataset = dataset.map(lambda x: preprocess_contrast(x,factor=2))
+        contrast_dataset = contrast_dataset.batch(batch_size)
+        contrast_predictions = contrast_model.predict(contrast_dataset)
+
+        elapsed_time = time() - start
 
         # Perform ensemble prediction
         all_pred = tf.stack((normal_predictions, edge_predictions, contrast_predictions))
         ensemble_pred = tf.round(tf.reduce_mean(all_pred, axis=0))
+        ensemble_pred = tf.squeeze(ensemble_pred)   # remove dim 1 from shapes
+        outpath = write_predictions_to_excel(
+            predictions=ensemble_pred, filenames=filenames, output_file="Worms_Pred_CNN.xlsx"
+        )
 
-        # Write predictions to Excel file or do further processing
-        self.text_window.insert(tk.END, "Finished prediction.\n")
-        # You can perform further processing or save predictions here
+        self.text_window.insert(tk.END, f"Finished. Written outputs to {outpath}\n")
+        self.text_window.insert(tk.END, f"Processed in {elapsed_time/60:.3f} mins.\n")
 
 
 if __name__ == "__main__":

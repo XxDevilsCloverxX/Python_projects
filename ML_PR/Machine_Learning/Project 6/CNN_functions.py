@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 
@@ -14,14 +15,55 @@ def show_confusion_matrix(cm: np.ndarray) -> None:
     plt.title('Confusion Matrix of Classified Test Data')
     plt.show()  # Explicitly show the plot
 
+def preprocess_original(image):
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(image, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
+    return img
 
-def write_predictions_to_excel(predictions: np.ndarray, filenames: list, output_file: str) -> str:
+def preprocess_sobel(image):
+    # Expand the dimensions to include a batch dimension
+    img = tf.expand_dims(image, axis=0)
+    
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(img, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
+
+    # Apply Sobel edge detection
+    img = tf.image.sobel_edges(img)  # Sobel edge detection
+
+    # Remove the batch dimension after Sobel edge detection
+    img = tf.squeeze(img, axis=0)
+
+    # Calculate the magnitude of gradient
+    img = tf.norm(img, axis=-1)
+
+    # Normalize
+    img = img / tf.reduce_max(img)
+
+    return img
+
+
+def preprocess_contrast(image, factor=1.0):
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(image, tf.float32)
+    # Normalize the pixel values to [0, 1]
+    img /= 255.0
+
+    # Adjust contrast
+    img = tf.image.adjust_contrast(img, contrast_factor=factor)
+
+    return img
+
+def write_predictions_to_excel(predictions: tf.Tensor, filenames: list, output_file: str) -> str:
     """
     This function takes a list of predictions and true labels, and creates a confusion matrix.
     From here, it will write to excel sheets:
         Sheet 1: Filename | Predicted Label | Label | Predicted Count
     """
-    predictions = predictions.astype(int)
+    predictions = tf.cast(predictions, tf.int8)
     
     # Create DataFrames
     df = pd.DataFrame({'Filename': filenames, 'Predicted Label': predictions})
