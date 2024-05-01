@@ -3,44 +3,8 @@ import tensorflow as tf
 from keras.utils import image_dataset_from_directory, split_dataset
 from sklearn.metrics import confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
-import cv2
+from tensorflow.keras.models import load_model
 import numpy as np
-
-def preprocess_bin(image, label):
-    img = np.array(image)
-    # Convert image to uint8
-    img = img.astype(np.uint8)
-
-    # Apply Otsu's thresholding to the grayscale image
-    _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # Convert to TensorFlow tensor
-    img = tf.convert_to_tensor(img, dtype=tf.float32)
-    # normalize
-    img = tf.truediv(img, 255)
-
-    # reshape the image to (30, 30, 1)
-    img = tf.reshape(img, [30, 30, 1])
-
-    return img, label
-
-def preprocess_edge(image, label):
-    img = image.numpy()
-    # Convert image to uint8
-    img = img.astype(np.uint8)
-
-    # Apply Canny edge detection
-    img = cv2.Canny(img, 100, 200)
-
-    # Convert to TensorFlow tensor
-    img = tf.convert_to_tensor(img, dtype=tf.float32)
-    # normalize
-    img = tf.truediv(img, 255)
-
-    # reshape the image to (30, 30, 1)
-    img = tf.reshape(img, [30, 30, 1])
-
-    return img, label
 
 def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
     # Design a CNN model for binary classification
@@ -111,13 +75,49 @@ def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
     # Save the trained model in native Keras format
     model.save(f'{model_name}.keras')
 
+def preprocess_original(image, label):
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(image, tf.float32)
+    return img, label
+
+def preprocess_sobel(image, label):
+    # Expand the dimensions to include a batch dimension
+    img = tf.expand_dims(image, axis=0)
+    
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(img, tf.float32)
+
+    # Apply Sobel edge detection
+    img = tf.image.sobel_edges(img)  # Sobel edge detection
+
+    # Remove the batch dimension after Sobel edge detection
+    img = tf.squeeze(img, axis=0)
+
+    # Calculate the magnitude of gradient
+    img = tf.norm(img, axis=-1)
+
+    # Normalize
+    img = img / tf.reduce_max(img)
+
+    return img, label
+
+def preprocess_contrast(image, label, factor=1.0):
+    # Convert image to float32
+    img = tf.image.convert_image_dtype(image, tf.float32)
+
+    # Adjust contrast
+    img = tf.image.adjust_contrast(img, contrast_factor=factor)
+
+    return img, label
+
+
 def main():
     parser = argparse.ArgumentParser(description="SMR Debug")
     parser.add_argument("-d","--directory", default=None, type=str, help="Parent directory to worm images.")
     parser.add_argument("-e","--epochs", default='10', type=int, help="Number of epochs for training.")
     args = parser.parse_args()
     
-    # load the dataset
+    # Load the dataset
     train_dataset, test_dataset = image_dataset_from_directory(args.directory,
                                                                color_mode='grayscale',
                                                                image_size=(30, 30),
@@ -132,31 +132,57 @@ def main():
     BATCH_SIZE = 64
     train_batches = train_dataset.shuffle(train_dataset.cardinality().numpy()).batch(BATCH_SIZE)
     test_batches = test_dataset.batch(BATCH_SIZE)
-    # Convert validation dataset to a single batch
+    
+    # Preprocess validation data
     val_x, val_y = next(iter(validation_dataset.batch(len(validation_dataset))))
 
-    # Train with raw dataset
-    train_model(train_batches, val_x, val_y, test_batches, args.epochs, "Raw Data")
+    # # Train with raw dataset
+    # train_model(train_batches, val_x, val_y, test_batches, args.epochs, "Raw Data")
 
-    # Preprocess dataset using binarization
-    train_dataset_bin = train_dataset.map(preprocess_bin)
-    test_dataset_bin = test_dataset.map(preprocess_bin)
-    validation_dataset_bin = validation_dataset.map(preprocess_bin)
+    # Preprocess dataset using Sobel edge detection
+    train_dataset_sobel = train_dataset.map(preprocess_sobel)
+    test_dataset_sobel = test_dataset.map(preprocess_sobel)
+    validation_dataset_sobel = validation_dataset.map(preprocess_sobel)
+    val_x, val_y = next(iter(validation_dataset_sobel.batch(len(validation_dataset))))
 
-    train_batches_bin = train_dataset_bin.shuffle(train_dataset_bin.cardinality().numpy()).batch(BATCH_SIZE)
-    test_batches_bin = test_dataset_bin.batch(BATCH_SIZE)
+    train_batches_sobel = train_dataset_sobel.shuffle(train_dataset_sobel.cardinality().numpy()).batch(BATCH_SIZE)
+    test_batches_sobel = test_dataset_sobel.batch(BATCH_SIZE)
 
-    train_model(train_batches_bin, val_x, val_y, test_batches_bin, args.epochs, "Binarized Data")
+    # Train with Sobel edge detection
+    # train_model(train_batches_sobel, val_x, val_y, test_batches_sobel, args.epochs, "Sobel Edge Data")
 
-    # Preprocess dataset using edge detection
-    train_dataset_edge = train_dataset.map(preprocess_edge)
-    test_dataset_edge = test_dataset.map(preprocess_edge)
-    validation_dataset_edge = validation_dataset.map(preprocess_edge)
+    # Preprocess dataset using gamma correction
+    train_dataset_gamma = train_dataset.map(lambda x, y: preprocess_contrast(x, y, factor=2))  # You can adjust gamma value as needed
+    test_dataset_gamma = test_dataset.map(lambda x, y: preprocess_contrast(x, y, factor=2))
+    validation_dataset_gamma = validation_dataset.map(lambda x, y: preprocess_contrast(x, y, factor=2))
+    val_x, val_y = next(iter(validation_dataset_gamma.batch(len(validation_dataset))))
 
-    train_batches_edge = train_dataset_edge.shuffle(train_dataset_edge.cardinality().numpy()).batch(BATCH_SIZE)
-    test_batches_edge = test_dataset_edge.batch(BATCH_SIZE)
 
-    train_model(train_batches_edge, val_x, val_y, test_batches_edge, args.epochs, "Edge Detected Data")
+    train_batches_gamma = train_dataset_gamma.shuffle(train_dataset_gamma.cardinality().numpy()).batch(BATCH_SIZE)
+    test_batches_gamma = test_dataset_gamma.batch(BATCH_SIZE)
+
+    # Train with gamma corrected data
+    # train_model(train_batches_gamma, val_x, val_y, test_batches_gamma, args.epochs, "Contrast Corrected Data")
+    
+    # Load trained models
+    model_original = load_model("Raw Data.keras")
+    model_sobel = load_model("Sobel Edge Data.keras")
+    model_contrast = load_model("Contrast Corrected Data.keras")
+    
+    test_x_raw, test_y = next(iter(test_dataset.batch(len(validation_dataset))))
+    test_x_sobel, _ = next(iter(test_dataset_sobel.batch(len(validation_dataset))))
+    test_x_contrast, _ = next(iter(test_dataset_gamma.batch(len(validation_dataset))))
+    pred_original = model_original.predict(test_x_raw)
+    pred_sobel = model_sobel.predict(test_x_sobel)
+    pred_contrast = model_contrast.predict(test_x_contrast)
+    
+    predictions = tf.stack([pred_original, pred_sobel, pred_contrast])
+    ensemble_pred = tf.reduce_mean(predictions, axis=0)
+    ensemble_pred = tf.round(ensemble_pred)
+
+    cm = confusion_matrix(test_y, ensemble_pred)
+    print(f"Test Accuracy: {100 * np.sum(np.diag(cm)) / np.sum(cm):.2f}%")
+    print(cm)
 
 if __name__ == '__main__':
     main()
