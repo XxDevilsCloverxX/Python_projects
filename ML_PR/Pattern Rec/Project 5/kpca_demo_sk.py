@@ -66,28 +66,35 @@ kernel_pca_proj_ax_cos.set_title("Projection of testing data\n using KernelPCA (
 plt.tight_layout()
 plt.show()
 
-# reconstruction
+# Reconstruction
 X_reconstructed_pca = pca.inverse_transform(pca.transform(X_test))
 X_reconstructed_kernel_pca = kernel_pca.inverse_transform(kernel_pca.transform(X_test))
+X_reconstructed_kernel_pca_cos = kernel_pca_cos.inverse_transform(kernel_pca_cos.transform(X_test))
 
-fig, (orig_data_ax, pca_back_proj_ax, kernel_pca_back_proj_ax) = plt.subplots(
-    ncols=3, sharex=True, sharey=True, figsize=(13, 4)
+fig, ((orig_data_ax, pca_back_proj_ax), (kernel_pca_back_proj_ax, kernel_pca_back_proj_ax_cos)) = plt.subplots(
+    nrows=2, ncols=2, sharex=True, sharey=True, figsize=(10, 10)
 )
 
+# Plot original data
 orig_data_ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test)
 orig_data_ax.set_ylabel("Feature #1")
 orig_data_ax.set_xlabel("Feature #0")
 orig_data_ax.set_title("Original test data")
 
+# Plot PCA reconstruction
 pca_back_proj_ax.scatter(X_reconstructed_pca[:, 0], X_reconstructed_pca[:, 1], c=y_test)
 pca_back_proj_ax.set_xlabel("Feature #0")
 pca_back_proj_ax.set_title("Reconstruction via PCA")
 
-kernel_pca_back_proj_ax.scatter(
-    X_reconstructed_kernel_pca[:, 0], X_reconstructed_kernel_pca[:, 1], c=y_test
-)
+# Plot KernelPCA (RBF) reconstruction
+kernel_pca_back_proj_ax.scatter(X_reconstructed_kernel_pca[:, 0], X_reconstructed_kernel_pca[:, 1], c=y_test)
 kernel_pca_back_proj_ax.set_xlabel("Feature #0")
-_ = kernel_pca_back_proj_ax.set_title("Reconstruction via KernelPCA")
+kernel_pca_back_proj_ax.set_title("Reconstruction via KernelPCA (RBF)")
+
+# Plot KernelPCA (Cosine) reconstruction
+kernel_pca_back_proj_ax_cos.scatter(X_reconstructed_kernel_pca_cos[:, 0], X_reconstructed_kernel_pca_cos[:, 1], c=y_test)
+kernel_pca_back_proj_ax_cos.set_xlabel("Feature #0")
+_ = kernel_pca_back_proj_ax_cos.set_title("Reconstruction via KernelPCA (Cosine)")
 
 plt.tight_layout()
 plt.show()
