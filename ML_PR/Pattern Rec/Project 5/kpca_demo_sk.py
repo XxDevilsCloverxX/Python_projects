@@ -23,8 +23,9 @@ plt.show()
 # PCA and KernelPCA transformation
 pca = PCA(n_components=2)
 
+#  gamma = 1/2(sigma)**2 : Relation of gamma to the variance {Gamma up = sigma down}
 kernel_pca = KernelPCA(
-    n_components=None, kernel="rbf", gamma=10, fit_inverse_transform=True, alpha=0.1
+    n_components=None, kernel="rbf", gamma=5, fit_inverse_transform=True, alpha=0.1
 )
 kernel_pca_cos = KernelPCA(
     n_components=None, kernel="cosine", fit_inverse_transform=True, alpha=0.1
