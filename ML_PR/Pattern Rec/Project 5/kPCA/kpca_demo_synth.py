@@ -8,7 +8,7 @@ X, y = make_circles(n_samples=1000, factor=0.3, noise=0.05, random_state=0)
 X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, random_state=0)
 
 # Visualizing the dataset
-_, (train_ax, test_ax) = plt.subplots(ncols=2, sharex=True, sharey=True, figsize=(8, 4))
+_, (train_ax, test_ax) = plt.subplots(ncols=2, sharex=True, sharey=True, figsize=(10, 6))
 
 train_ax.scatter(X_train[:, 0], X_train[:, 1], c=y_train)
 train_ax.set_ylabel("Feature #1")
