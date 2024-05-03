@@ -15,7 +15,6 @@ mds = MDS(n_components=n_components)
 
 # Fit the MDS model to your data
 X_reduced = mds.fit_transform(X)
-
 print('Dimension of X after MDS = ', X_reduced.shape)
 
 # Visualize the reduced data
