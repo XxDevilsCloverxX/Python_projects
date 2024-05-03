@@ -1,19 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import tensorflow as tf
-
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
-
-def show_confusion_matrix(cm: np.ndarray) -> None:
-    """
-    Display a confusion matrix
-    """
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot(cmap='Greens')
-    plt.title('Confusion Matrix of Classified Test Data')
-    plt.show()  # Explicitly show the plot
 
 def preprocess_original(image):
     # Convert image to float32
@@ -44,7 +32,6 @@ def preprocess_sobel(image):
     img = img / tf.reduce_max(img)
 
     return img
-
 
 def preprocess_contrast(image, factor=1.0):
     # Convert image to float32

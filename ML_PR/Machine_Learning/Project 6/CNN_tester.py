@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import filedialog, scrolledtext
 import tensorflow as tf
 from time import time
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 from keras.utils import image_dataset_from_directory
 from CNN_functions import *
 

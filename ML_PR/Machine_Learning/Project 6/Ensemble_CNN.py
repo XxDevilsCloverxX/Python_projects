@@ -4,7 +4,7 @@ from time import time
 from keras.utils import image_dataset_from_directory, split_dataset
 from sklearn.metrics import confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 import numpy as np
 
 def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
@@ -24,6 +24,10 @@ def train_model(train_batches, val_x, val_y, test_batches, epochs, model_name):
     model.compile(optimizer='adam',
                   loss='binary_crossentropy',
                   metrics=['accuracy'])
+
+    model.build()
+    total_parameters = model.count_params()
+    print("Total number of trainable parameters:", total_parameters)
 
     # Train the model
     history = model.fit(train_batches, epochs=epochs, validation_data=(val_x, val_y))
@@ -190,6 +194,7 @@ def main():
     test_x_sobel, _ = next(iter(test_dataset_sobel.batch(len(test_dataset))))
     test_x_contrast, _ = next(iter(test_dataset_gamma.batch(len(test_dataset))))
 
+    start = time()
     pred_original = model_original.predict(test_x_raw)
     pred_sobel = model_sobel.predict(test_x_sobel)
     pred_contrast = model_contrast.predict(test_x_contrast)
@@ -197,10 +202,27 @@ def main():
     predictions = tf.stack([pred_original, pred_sobel, pred_contrast])
     ensemble_pred = tf.reduce_mean(predictions, axis=0)
     ensemble_pred = tf.round(ensemble_pred)
-
+    end = time()
+    
     cm = confusion_matrix(test_y, ensemble_pred)
     print(f"Test Accuracy: {100 * np.sum(np.diag(cm)) / np.sum(cm):.2f}%")
     print(cm)
+    print(f"Testing time: {(end-start)/60:.3f} min")
+     # Plot confusion matrix with annotations
+    plt.imshow(cm, cmap='Greens', interpolation='nearest')
+    plt.title(f'Ensemble Confusion Matrix')
+    plt.colorbar()
+    plt.xticks(ticks=[0, 1], labels=['0', '1'])
+    plt.yticks(ticks=[0, 1], labels=['0', '1'])
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+
+    # Add text annotations
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(j, i, cm[i, j], ha='center', va='center', color='black')
+
+    plt.show()
 
 if __name__ == '__main__':
     main()
