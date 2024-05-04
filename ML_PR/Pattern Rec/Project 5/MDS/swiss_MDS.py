@@ -16,9 +16,8 @@ ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 plt.show()
 
-
 # Perform Multidimensional Scaling (MDS) to project the data to 2D
-mds = MDS(n_components=2, n_jobs=-1)
+mds = MDS(n_components=2, n_jobs=-1, dissimilarity='euclidean')
 X_2d_mds = mds.fit_transform(X)
 
 # Plot the transformed data in 2D using MDS
